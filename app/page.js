@@ -647,7 +647,80 @@ function HallOfFameTab({ players, trophies }) {
     </div>
   );
 }
+function TournamentsTab() {
+  const { card, border, ink, muted, hover } = useTheme();
+  const [tournaments, setTournaments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    fetch('/api/tournaments', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { setTournaments(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const formatLabel = {
+    knockout: 'Knockout',
+    group_knockout: 'Group + Knockout',
+    round_robin: 'Round Robin',
+  };
+
+  const statusStyle = {
+    draft:     { bg: 'bg-[#7A9BAD]/10', text: 'text-[#7A9BAD]' },
+    active:    { bg: 'bg-amber-400/10', text: 'text-amber-400' },
+    completed: { bg: 'bg-green-500/10', text: 'text-green-500' },
+  };
+
+  if (loading) {
+    return (
+      <div className="px-4 py-10 text-center">
+        <Loader2 size={20} className="animate-spin text-teal mx-auto" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 py-5 pb-28">
+      <SectionTitle>Tournaments</SectionTitle>
+      {tournaments.length === 0 ? (
+        <div className={`${card} border ${border} rounded-2xl p-10 text-center shadow-sm`}>
+          <div className="text-5xl mb-3">🏆</div>
+          <p className={`${ink} font-semibold mb-1`}>No tournaments yet</p>
+          <p className={`${muted} text-sm`}>
+            Admins can create tournaments from the{' '}
+            <Link href="/admin/tournaments" className="text-teal underline">Admin panel</Link>.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {tournaments.map(t => {
+            const ss = statusStyle[t.status] || statusStyle.draft;
+            return (
+              <Link key={t.id} href={`/tournaments/${t.id}`}
+                className={`${card} border ${border} rounded-2xl shadow-sm px-4 py-4 flex items-center gap-3 ${hover} transition-colors block`}>
+                <div className="w-11 h-11 rounded-xl bg-teal/10 flex items-center justify-center flex-shrink-0">
+                  <Trophy size={20} className="text-teal" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`font-semibold ${ink} truncate`}>{t.name}</p>
+                  <p className={`${muted} text-xs mt-0.5`}>
+                    {formatLabel[t.format]}{t.affects_elo ? ' · ELO' : ''}
+                  </p>
+                </div>
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${ss.bg} ${ss.text} flex-shrink-0`}>
+                  {t.status}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+      <p className={`${muted} text-xs mt-4 text-center`}>
+        Tap a tournament to see the full bracket and results.
+      </p>
+    </div>
+  );
+}
 /* ── BOTTOM NAV ── */
 function BottomNav({ tab, setTab }) {
   const { navBg, navBorder } = useTheme();
