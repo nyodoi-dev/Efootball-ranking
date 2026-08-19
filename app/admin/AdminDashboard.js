@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   LogOut, Plus, Pencil, Trash2, Check, X,
   ListChecks, Users, RotateCcw, Save, ShieldCheck, Trophy, AlertTriangle,
