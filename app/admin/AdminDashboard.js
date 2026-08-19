@@ -431,7 +431,20 @@ export default function AdminDashboard() {
               </div>
             )}
           </section>
-
+<section>
+  <h2 className="flex items-center gap-2 font-display font-semibold text-2xl uppercase tracking-wide mb-3">
+    <Trophy size={20} /> Tournaments
+  </h2>
+  <Link href="/admin/tournaments"
+    className="flex items-center gap-3 bg-panel border border-white/10 rounded-lg px-4 py-3 hover:bg-panelAlt transition-colors">
+    <Trophy size={18} className="text-lime flex-shrink-0" />
+    <div className="flex-1">
+      <p className="font-medium text-sm">Manage Tournaments</p>
+      <p className="text-muted text-xs mt-0.5">Create and run knockout, group stage, or round robin tournaments</p>
+    </div>
+    <span className="text-muted text-xs">→</span>
+  </Link>
+</section>
           {/* ── Season ── */}
           <section>
             <h2 className="flex items-center gap-2 font-display font-semibold text-2xl uppercase tracking-wide mb-3">
