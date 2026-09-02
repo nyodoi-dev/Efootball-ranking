@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, createContext, useContext } from 'react';
 import Link from 'next/link';
 import {
-  Trophy, Swords, medal, History, Repeat, Users, Image as ImageIcon,
+  Trophy, Swords, Medal, History, Repeat, Users, Image as ImageIcon,
   Loader2, BarChart3, ShieldCheck, Home as HomeIcon, ListOrdered,
   ClipboardCheck, User, CheckCircle2, TrendingUp, Sun, Moon,
 } from 'lucide-react';
