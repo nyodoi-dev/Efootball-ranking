@@ -87,6 +87,22 @@ export default function AdminTournamentPage() {
     setBusy(false);
   }
 
+  async function approveReport(reportId) {
+    setBusy(true);
+    const res = await fetch(`/api/tournaments/${id}/reports/${reportId}`, { method: 'POST' });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) msg('error', d.error || 'Could not approve.'); else msg('success', 'Result approved.');
+    await loadAll();
+    setBusy(false);
+  }
+
+  async function rejectReport(reportId) {
+    setBusy(true);
+    await fetch(`/api/tournaments/${id}/reports/${reportId}`, { method: 'DELETE' });
+    await loadAll();
+    setBusy(false);
+  }
+
   async function deleteTournament() {
     if (!window.confirm('Delete this tournament? This cannot be undone.')) return;
     setBusy(true);
@@ -103,7 +119,10 @@ export default function AdminTournamentPage() {
   const isCompleted = tournament.status === 'completed';
 
   const pendingMatches = matches.filter(m => m.status === 'pending' && m.player_a && m.player_b);
-  const playedMatches = matches.filter(m => m.status === 'played');
+  const playedMatches = matches.filter(m => m.status === 'played' && m.player_a && m.player_b);
+  const matchById = {};
+  matches.forEach(m => (matchById[m.id] = m));
+  const waitingReports = (data.reports || []).filter(r => r.status === 'pending' && matchById[r.match_id]?.status === 'pending');
 
   const groupMatches = pendingMatches.filter(m => m.stage === 'group');
   const knockoutMatches = pendingMatches.filter(m => m.stage === 'knockout');
@@ -214,6 +233,43 @@ export default function AdminTournamentPage() {
           </section>
         )}
 
+        {/* Results reported by players */}
+        {isActive && waitingReports.length > 0 && (
+          <section>
+            <h2 className="font-bold text-base uppercase tracking-wide mb-2">Reported results ({waitingReports.length})</h2>
+            <div className="space-y-2">
+              {waitingReports.map(r => {
+                const m = matchById[r.match_id];
+                return (
+                  <div key={r.id} className="bg-[#162330] border border-teal-500/40 rounded-xl px-4 py-3">
+                    <div className="flex items-center justify-between text-sm font-medium">
+                      <span>{playerName(m.player_a)}</span>
+                      <span className="font-mono font-bold px-2">{r.score_a} – {r.score_b}</span>
+                      <span>{playerName(m.player_b)}</span>
+                    </div>
+                    <p className="text-xs text-[#7A9BAD] mt-1">
+                      {ROUND_LABELS[m.round] || m.round} · reported by {r.submitted_by}
+                      {r.screenshot_url && (
+                        <> · <a href={r.screenshot_url} target="_blank" rel="noreferrer" className="underline text-teal-400">screenshot</a></>
+                      )}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={() => approveReport(r.id)} disabled={busy}
+                        className="flex-1 flex items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium bg-teal-600 text-white disabled:opacity-60">
+                        <Check size={12} /> Approve
+                      </button>
+                      <button onClick={() => rejectReport(r.id)} disabled={busy}
+                        className="flex-1 flex items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium border border-red-400/40 text-red-400 disabled:opacity-60">
+                        <Trash2 size={12} /> Reject
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Active: enter results */}
         {isActive && (
           <>
@@ -229,7 +285,7 @@ export default function AdminTournamentPage() {
                         <span className="text-[#7A9BAD] text-xs px-2">vs</span>
                         <span>{playerName(m.player_b)}</span>
                       </div>
-                      <ScoreInput matchId={m.id} match={m} />
+                      {ScoreInput({ matchId: m.id, match: m })}
                     </div>
                   ))}
                 </div>
@@ -250,7 +306,7 @@ export default function AdminTournamentPage() {
                         <span className="text-[#7A9BAD] text-xs px-2">vs</span>
                         <span>{playerName(m.player_b)}</span>
                       </div>
-                      <ScoreInput matchId={m.id} match={m} />
+                      {ScoreInput({ matchId: m.id, match: m })}
                     </div>
                   ))}
                 </div>

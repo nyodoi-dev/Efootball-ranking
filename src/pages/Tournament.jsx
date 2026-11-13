@@ -1,7 +1,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Trophy, Users, Swords, CheckCircle2, Clock } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, Camera, Upload, Hourglass, X } from 'lucide-react';
+import { uploadScreenshot } from '../lib/api';
 
 const ROUND_LABELS = { r32: 'Round of 32', r16: 'Round of 16', qf: 'Quarter-Finals', sf: 'Semi-Finals', f: 'Final' };
 
@@ -11,8 +12,8 @@ export default function TournamentPage() {
   const [allPlayers, setAllPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([
+  function load() {
+    return Promise.all([
       fetch(`/api/tournaments/${id}`, { cache: 'no-store' }).then(r => r.json()),
       fetch('/api/players', { cache: 'no-store' }).then(r => r.json()),
     ]).then(([tData, pData]) => {
@@ -20,7 +21,9 @@ export default function TournamentPage() {
       setAllPlayers(Array.isArray(pData) ? pData : []);
       setLoading(false);
     });
-  }, [id]);
+  }
+
+  useEffect(() => { load(); }, [id]);
 
   const playerById = useMemo(() => {
     const m = {};
@@ -50,6 +53,22 @@ export default function TournamentPage() {
   }
 
   const { tournament, players, matches } = data;
+  const reports = data.reports || [];
+  const waitingByMatch = {};
+  const screenshotByMatch = {};
+  reports.forEach(r => {
+    if (r.status === 'pending') waitingByMatch[r.match_id] = r;
+    else if (r.screenshot_url) screenshotByMatch[r.match_id] = r.screenshot_url;
+  });
+  const cardProps = (m) => ({
+    match: m,
+    playerName,
+    tournamentId: id,
+    canReport: tournament.status === 'active',
+    waiting: waitingByMatch[m.id],
+    screenshot: screenshotByMatch[m.id],
+    onReported: load,
+  });
   const formatLabel = { knockout: 'Knockout', group_knockout: 'Group + Knockout', round_robin: 'Round Robin' };
   const statusColor = { draft: 'text-[#7A9BAD]', active: 'text-amber-400', completed: 'text-green-500' };
 
@@ -150,6 +169,15 @@ export default function TournamentPage() {
           </section>
         )}
 
+        {tournament.format === 'round_robin' && groupMatches.length > 0 && (
+          <section>
+            <h2 className="font-bold text-lg uppercase tracking-wide mb-2">Fixtures</h2>
+            <div className="space-y-2">
+              {groupMatches.map(m => <MatchCard key={m.id} {...cardProps(m)} />)}
+            </div>
+          </section>
+        )}
+
         {/* Group Stage */}
         {(tournament.format === 'group_knockout' || tournament.format === 'round_robin') && Object.keys(groupStandings).length > 0 && (
           <section className="space-y-4">
@@ -173,7 +201,7 @@ export default function TournamentPage() {
                 {/* Group fixtures */}
                 <div className="space-y-2">
                   {(groupByLabel[groupLabel] || []).map(m => (
-                    <MatchCard key={m.id} match={m} playerName={playerName} />
+                    <MatchCard key={m.id} {...cardProps(m)} />
                   ))}
                 </div>
               </div>
@@ -192,7 +220,7 @@ export default function TournamentPage() {
                 </h3>
                 <div className="space-y-2">
                   {knockoutByRound[round].map(m => (
-                    <MatchCard key={m.id} match={m} playerName={playerName} />
+                    <MatchCard key={m.id} {...cardProps(m)} />
                   ))}
                 </div>
               </div>
@@ -219,30 +247,120 @@ export default function TournamentPage() {
   );
 }
 
-function MatchCard({ match, playerName }) {
+function MatchCard({ match, playerName, tournamentId, canReport, waiting, screenshot, onReported }) {
   const played = match.status === 'played';
+  const bye = played && (!match.player_a || !match.player_b);
   const winnerA = played && match.winner_id === match.player_a;
   const winnerB = played && match.winner_id === match.player_b;
+  const ready = !played && match.player_a && match.player_b;
+
+  const [open, setOpen] = useState(false);
+  const [scoreA, setScoreA] = useState('');
+  const [scoreB, setScoreB] = useState('');
+  const [name, setName] = useState('');
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(e) {
+    e.preventDefault();
+    setError('');
+    if (scoreA === '' || scoreB === '') { setError('Enter the score for both players.'); return; }
+    if (match.stage === 'knockout' && Number(scoreA) === Number(scoreB)) {
+      setError('Knockout matches cannot end in a draw.'); return;
+    }
+    setBusy(true);
+    try {
+      let screenshotUrl = null;
+      if (file) {
+        try { screenshotUrl = await uploadScreenshot(file); }
+        catch { setError('Screenshot upload failed. Try again.'); setBusy(false); return; }
+      }
+      const res = await fetch(`/api/tournaments/${tournamentId}/matches/${match.id}/report`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scoreA, scoreB, submittedBy: name, screenshotUrl }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(d.error || 'Could not send the result.'); }
+      else { setOpen(false); setScoreA(''); setScoreB(''); setFile(null); await onReported(); }
+    } catch { setError('Network error. Try again.'); }
+    setBusy(false);
+  }
+
+  const inputCls = 'rounded-lg px-2 py-2 text-sm bg-[#0D1B24] border border-[#1E3040] text-[#E8F0F5]';
 
   return (
-    <div className={`bg-[#162330] border rounded-xl px-4 py-3 flex items-center gap-3 ${played ? 'border-[#1E3040]' : 'border-amber-400/20'}`}>
-      <div className="flex-1 min-w-0">
-        <span className={`text-sm font-medium ${winnerA ? 'text-green-400' : ''} ${!match.player_a ? 'text-[#7A9BAD] italic' : ''}`}>
-          {match.player_a ? playerName(match.player_a) : 'TBD'}
-        </span>
+    <div className={`bg-[#162330] border rounded-xl px-4 py-3 ${played ? 'border-[#1E3040]' : 'border-amber-400/20'}`}>
+      <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <span className={`text-sm font-medium ${winnerA ? 'text-green-400' : ''} ${!match.player_a ? 'text-[#7A9BAD] italic' : ''}`}>
+            {match.player_a ? playerName(match.player_a) : bye ? 'Bye' : 'TBD'}
+          </span>
+        </div>
+        <div className="font-mono text-sm font-bold text-center w-16">
+          {bye ? <span className="text-[#7A9BAD] text-xs">bye</span>
+            : played ? `${match.score_a} – ${match.score_b}`
+            : <span className="text-[#7A9BAD] text-xs">vs</span>}
+        </div>
+        <div className="flex-1 min-w-0 text-right">
+          <span className={`text-sm font-medium ${winnerB ? 'text-green-400' : ''} ${!match.player_b ? 'text-[#7A9BAD] italic' : ''}`}>
+            {match.player_b ? playerName(match.player_b) : bye ? 'Bye' : 'TBD'}
+          </span>
+        </div>
+        {played
+          ? <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />
+          : <Clock size={14} className="text-amber-400 flex-shrink-0" />
+        }
       </div>
-      <div className="font-mono text-sm font-bold text-center w-16">
-        {played ? `${match.score_a} – ${match.score_b}` : <span className="text-[#7A9BAD] text-xs">vs</span>}
-      </div>
-      <div className="flex-1 min-w-0 text-right">
-        <span className={`text-sm font-medium ${winnerB ? 'text-green-400' : ''} ${!match.player_b ? 'text-[#7A9BAD] italic' : ''}`}>
-          {match.player_b ? playerName(match.player_b) : 'TBD'}
-        </span>
-      </div>
-      {played
-        ? <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />
-        : <Clock size={14} className="text-amber-400 flex-shrink-0" />
-      }
+
+      {played && screenshot && (
+        <a href={screenshot} target="_blank" rel="noreferrer"
+          className="mt-2 inline-flex items-center gap-1.5 text-xs text-[#7A9BAD] hover:text-[#E8F0F5]">
+          <Camera size={12} /> View screenshot
+        </a>
+      )}
+
+      {ready && waiting && !open && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
+          <Hourglass size={12} className="flex-shrink-0" />
+          Reported {waiting.score_a} – {waiting.score_b} by {waiting.submitted_by}. Waiting for admin approval.
+        </p>
+      )}
+
+      {ready && canReport && !open && (
+        <button onClick={() => setOpen(true)}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border border-[#1E3040] text-[#E8F0F5] hover:bg-[#1E3040]">
+          <Upload size={12} /> {waiting ? 'Report a different score' : 'Report result'}
+        </button>
+      )}
+
+      {open && (
+        <form onSubmit={submit} className="mt-3 pt-3 border-t border-[#1E3040] space-y-3">
+          <div className="flex items-center gap-2">
+            <input type="number" min={0} max={99} inputMode="numeric" value={scoreA} onChange={e => setScoreA(e.target.value)}
+              aria-label={`Goals for ${playerName(match.player_a)}`} placeholder="0"
+              className={`${inputCls} w-16 text-center font-mono`} />
+            <span className="text-[#7A9BAD] text-sm font-bold">–</span>
+            <input type="number" min={0} max={99} inputMode="numeric" value={scoreB} onChange={e => setScoreB(e.target.value)}
+              aria-label={`Goals for ${playerName(match.player_b)}`} placeholder="0"
+              className={`${inputCls} w-16 text-center font-mono`} />
+            <button type="button" onClick={() => { setOpen(false); setError(''); }} aria-label="Cancel"
+              className="ml-auto text-[#7A9BAD] hover:text-[#E8F0F5]"><X size={16} /></button>
+          </div>
+          <input type="text" value={name} onChange={e => setName(e.target.value)} maxLength={40}
+            placeholder="Your name" aria-label="Your name" className={`${inputCls} w-full px-3`} />
+          <label className="flex items-center gap-2 text-xs text-[#7A9BAD] cursor-pointer">
+            <Camera size={14} className="flex-shrink-0" />
+            <span className="truncate">{file ? file.name : 'Add a screenshot of the final score'}</span>
+            <input type="file" accept="image/*" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+          </label>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <button type="submit" disabled={busy}
+            className="w-full rounded-lg px-3 py-2 text-sm font-semibold bg-teal-600 text-white disabled:opacity-60">
+            {busy ? 'Sending…' : 'Send for approval'}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

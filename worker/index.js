@@ -250,7 +250,7 @@ api.post('/season/reset', requireAdmin, async (c) => {
 // Wipe everything and start again from Season 1.
 api.post('/reset', requireAdmin, async (c) => {
   const db = c.env.DB;
-  const tables = ['pending_matches', 'trophies', 'season_archives', 'matches', 'tournament_matches', 'tournament_players', 'tournaments', 'players', 'seasons'];
+  const tables = ['pending_matches', 'trophies', 'season_archives', 'matches', 'tournament_reports', 'tournament_matches', 'tournament_players', 'tournaments', 'players', 'seasons'];
   await db.batch([
     ...tables.map((t) => db.prepare(`DELETE FROM ${t}`)),
     db.prepare("INSERT INTO seasons (id, name, started_at) VALUES (?, 'Season 1', ?)").bind(uid(), now()),
@@ -366,10 +366,12 @@ api.get('/tournaments/:id', async (c) => {
       .bind(id)
   );
   const matches = await all(db.prepare('SELECT * FROM tournament_matches WHERE tournament_id = ? ORDER BY match_order').bind(id));
+  const reports = await all(db.prepare('SELECT * FROM tournament_reports WHERE tournament_id = ? ORDER BY created_at').bind(id));
   return c.json({
     tournament: tournamentOut(tournament),
     players: players.map((p) => ({ ...p, eliminated: !!p.eliminated })),
     matches,
+    reports,
   });
 });
 
@@ -377,6 +379,7 @@ api.delete('/tournaments/:id', requireAdmin, async (c) => {
   const db = c.env.DB;
   const id = c.req.param('id');
   await db.batch([
+    db.prepare('DELETE FROM tournament_reports WHERE tournament_id = ?').bind(id),
     db.prepare('DELETE FROM tournament_matches WHERE tournament_id = ?').bind(id),
     db.prepare('DELETE FROM tournament_players WHERE tournament_id = ?').bind(id),
     db.prepare('DELETE FROM tournaments WHERE id = ?').bind(id),
@@ -419,7 +422,60 @@ api.post('/tournaments/:id/start', requireAdmin, async (c) => {
 api.post('/tournaments/:id/matches/:matchId', requireAdmin, async (c) => {
   const { scoreA, scoreB } = await body(c);
   const out = await enterResult(c.env.DB, c.req.param('id'), c.req.param('matchId'), scoreA, scoreB);
-  return out.error ? fail(c, out.error, out.status) : c.json({ success: true });
+  if (out.error) return fail(c, out.error, out.status);
+  await c.env.DB.prepare("DELETE FROM tournament_reports WHERE match_id = ? AND status = 'pending'").bind(c.req.param('matchId')).run();
+  return c.json({ success: true });
+});
+
+// Open to anyone: a player reports the score of their tournament match.
+// It only counts once an admin approves it.
+api.post('/tournaments/:id/matches/:matchId/report', async (c) => {
+  const db = c.env.DB;
+  const tournamentId = c.req.param('id');
+  const matchId = c.req.param('matchId');
+  const { scoreA, scoreB, submittedBy, screenshotUrl } = await body(c);
+  const sA = Number.parseInt(scoreA, 10);
+  const sB = Number.parseInt(scoreB, 10);
+  if (!Number.isInteger(sA) || !Number.isInteger(sB) || sA < 0 || sB < 0 || sA > 99 || sB > 99) {
+    return fail(c, 'Enter a final score for both sides.');
+  }
+  const match = await db.prepare('SELECT * FROM tournament_matches WHERE id = ? AND tournament_id = ?').bind(matchId, tournamentId).first();
+  if (!match) return fail(c, 'Match not found.', 404);
+  if (match.status === 'played') return fail(c, 'This match already has a result.');
+  if (!match.player_a || !match.player_b) return fail(c, 'This match is not ready to be played yet.');
+  if (match.stage === 'knockout' && sA === sB) return fail(c, 'Knockout matches cannot end in a draw.');
+  if (screenshotUrl && !isImagePath(screenshotUrl)) return fail(c, 'Upload the screenshot first.');
+
+  const who = String(submittedBy || '').trim().slice(0, 40) || 'Unknown';
+  const id = uid();
+  await db.batch([
+    // A newer report for the same match replaces the one still waiting.
+    db.prepare("DELETE FROM tournament_reports WHERE match_id = ? AND status = 'pending'").bind(matchId),
+    db
+      .prepare('INSERT INTO tournament_reports (id, tournament_id, match_id, score_a, score_b, submitted_by, screenshot_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, tournamentId, matchId, sA, sB, who, screenshotUrl || null, now()),
+  ]);
+  return c.json(await db.prepare('SELECT * FROM tournament_reports WHERE id = ?').bind(id).first());
+});
+
+api.post('/tournaments/:id/reports/:reportId', requireAdmin, async (c) => {
+  const db = c.env.DB;
+  const report = await db
+    .prepare("SELECT * FROM tournament_reports WHERE id = ? AND tournament_id = ? AND status = 'pending'")
+    .bind(c.req.param('reportId'), c.req.param('id'))
+    .first();
+  if (!report) return fail(c, 'That report no longer exists.', 404);
+  const out = await enterResult(db, report.tournament_id, report.match_id, report.score_a, report.score_b);
+  if (out.error) return fail(c, out.error, out.status);
+  await db.prepare("UPDATE tournament_reports SET status = 'approved' WHERE id = ?").bind(report.id).run();
+  return c.json({ success: true });
+});
+
+api.delete('/tournaments/:id/reports/:reportId', requireAdmin, async (c) => {
+  await c.env.DB.prepare("DELETE FROM tournament_reports WHERE id = ? AND tournament_id = ? AND status = 'pending'")
+    .bind(c.req.param('reportId'), c.req.param('id'))
+    .run();
+  return c.json({ success: true });
 });
 
 // ── Pictures ────────────────────────────────────────────────────────────────

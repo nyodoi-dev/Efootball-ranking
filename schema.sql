@@ -122,3 +122,18 @@ CREATE TABLE IF NOT EXISTS images (
   data BLOB NOT NULL,
   created_at TEXT NOT NULL
 );
+
+-- Results reported by players for tournament matches, awaiting admin approval.
+-- Approved reports are kept so the screenshot stays attached to the match.
+CREATE TABLE IF NOT EXISTS tournament_reports (
+  id TEXT PRIMARY KEY,
+  tournament_id TEXT NOT NULL,
+  match_id TEXT NOT NULL,
+  score_a INTEGER NOT NULL,
+  score_b INTEGER NOT NULL,
+  submitted_by TEXT,
+  screenshot_url TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved')),
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_treports_tournament ON tournament_reports (tournament_id);
