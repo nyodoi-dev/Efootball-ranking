@@ -8,6 +8,10 @@ import {
 } from 'lucide-react';
 
 const ROUND_LABELS = { r32: 'R32', r16: 'R16', qf: 'QF', sf: 'SF', f: 'Final' };
+// Works for any bracket size: r64 -> "Round of 64", ordered largest round first.
+const roundSize = (r) => ({ f: 2, sf: 4, qf: 8 }[r] || Number(String(r).slice(1)) || 0);
+const roundLabel = (r) => ROUND_LABELS[r] || (/^r\d+$/.test(r) ? `Round of ${r.slice(1)}` : r);
+
 
 export default function AdminTournamentPage() {
   const { id } = useParams();
@@ -128,7 +132,6 @@ export default function AdminTournamentPage() {
   const knockoutMatches = pendingMatches.filter(m => m.stage === 'knockout');
 
   // Organize knockout rounds
-  const knockoutRoundOrder = ['r32', 'r16', 'qf', 'sf', 'f'];
   const knockoutByRound = {};
   knockoutMatches.forEach(m => {
     if (!knockoutByRound[m.round]) knockoutByRound[m.round] = [];
@@ -248,7 +251,7 @@ export default function AdminTournamentPage() {
                       <span>{playerName(m.player_b)}</span>
                     </div>
                     <p className="text-xs text-[#7A9BAD] mt-1">
-                      {ROUND_LABELS[m.round] || m.round} · reported by {r.submitted_by}
+                      {roundLabel(m.round)} · reported by {r.submitted_by}
                       {r.screenshot_url && (
                         <> · <a href={r.screenshot_url} target="_blank" rel="noreferrer" className="underline text-teal-400">screenshot</a></>
                       )}
@@ -293,10 +296,10 @@ export default function AdminTournamentPage() {
             ))}
 
             {/* Knockout matches */}
-            {knockoutRoundOrder.filter(r => knockoutByRound[r]).map(round => (
+            {Object.keys(knockoutByRound).sort((a, b) => roundSize(b) - roundSize(a)).map(round => (
               <section key={round}>
                 <h2 className="font-bold text-base uppercase tracking-wide mb-2">
-                  {ROUND_LABELS[round] || round} — Pending
+                  {roundLabel(round)} — Pending
                 </h2>
                 <div className="space-y-2">
                   {knockoutByRound[round].map(m => (

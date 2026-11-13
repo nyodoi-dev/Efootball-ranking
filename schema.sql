@@ -137,3 +137,4 @@ CREATE TABLE IF NOT EXISTS tournament_reports (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_treports_tournament ON tournament_reports (tournament_id);
+CREATE INDEX IF NOT EXISTS idx_treports_match ON tournament_reports (match_id, status);

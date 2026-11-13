@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import {
-  START_ELO, eloDelta, uid, now,
+  START_ELO, eloDelta, uid, now, parseScore,
   checkPassword, sessionCookie, clearCookie, isAdmin,
 } from './util.js';
-import { startTournament, enterResult } from './tournaments.js';
+import { startTournament, enterResult, advanceStage } from './tournaments.js';
 
 const app = new Hono();
 const api = new Hono();
@@ -16,6 +16,17 @@ const requireAdmin = async (c, next) => {
   if (!(await isAdmin(c.env, c.req.header('Cookie')))) return fail(c, 'Admin login required.', 401);
   await next();
 };
+
+// Requests that change data must come from this site's own pages. Browsers
+// always send Origin on these, so a form on another site cannot use an admin's
+// session. Tools that send no Origin carry no browser cookies either.
+api.use('*', async (c, next) => {
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
+    const origin = c.req.header('Origin');
+    if (origin && origin !== new URL(c.req.url).origin) return fail(c, 'Request refused: it did not come from this site.', 403);
+  }
+  await next();
+});
 
 api.use('*', async (c, next) => {
   await next();
@@ -153,11 +164,9 @@ api.get('/pending', async (c) => c.json(await all(c.env.DB.prepare('SELECT * FRO
 api.post('/pending', async (c) => {
   const { playerA, playerB, scoreA, scoreB, submittedBy, screenshotUrl } = await body(c);
   if (!playerA || !playerB || playerA === playerB) return fail(c, 'Pick two different players.');
-  const sA = Number.parseInt(scoreA, 10);
-  const sB = Number.parseInt(scoreB, 10);
-  if (!Number.isInteger(sA) || !Number.isInteger(sB) || sA < 0 || sB < 0 || sA > 99 || sB > 99) {
-    return fail(c, 'Enter a final score for both sides.');
-  }
+  const sA = parseScore(scoreA);
+  const sB = parseScore(scoreB);
+  if (sA === null || sB === null) return fail(c, 'Enter a whole-number score from 0 to 99 for both sides.');
   const db = c.env.DB;
   const found = await db.prepare('SELECT COUNT(*) AS n FROM players WHERE id IN (?, ?)').bind(playerA, playerB).first();
   if (found.n !== 2) return fail(c, 'Could not find both players.');
@@ -178,29 +187,45 @@ const currentSeason = (db) => db.prepare('SELECT * FROM seasons WHERE ended_at I
 api.post('/pending/:id', requireAdmin, async (c) => {
   const db = c.env.DB;
   const id = c.req.param('id');
-  const entry = await db.prepare('SELECT * FROM pending_matches WHERE id = ?').bind(id).first();
+  // Claim the report by removing it. Only one request gets the row back, so a
+  // double tap or two admins cannot approve the same result twice.
+  const entry = await db.prepare('DELETE FROM pending_matches WHERE id = ? RETURNING *').bind(id).first();
   if (!entry) return fail(c, 'That result no longer exists.', 404);
+  const restore = () =>
+    db
+      .prepare('INSERT OR IGNORE INTO pending_matches (id, player_a, player_b, score_a, score_b, submitted_by, created_at, screenshot_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(entry.id, entry.player_a, entry.player_b, entry.score_a, entry.score_b, entry.submitted_by, entry.created_at, entry.screenshot_url)
+      .run();
   const pA = await db.prepare('SELECT * FROM players WHERE id = ?').bind(entry.player_a).first();
   const pB = await db.prepare('SELECT * FROM players WHERE id = ?').bind(entry.player_b).first();
-  if (!pA || !pB) return fail(c, 'Could not load both players.', 500);
+  if (!pA || !pB) {
+    await restore();
+    return fail(c, 'Could not load both players.', 500);
+  }
 
   const result = entry.score_a > entry.score_b ? 1 : entry.score_a < entry.score_b ? 0 : 0.5;
   const dA = eloDelta(pA.elo, pB.elo, result);
   const dB = eloDelta(pB.elo, pA.elo, 1 - result);
   const season = await currentSeason(db);
-  const upd = 'UPDATE players SET elo = ?, wins = wins + ?, draws = draws + ?, losses = losses + ? WHERE id = ?';
+  // Add the change to whatever the rating is now, so two approvals for the
+  // same player cannot overwrite each other.
+  const upd = 'UPDATE players SET elo = elo + ?, wins = wins + ?, draws = draws + ?, losses = losses + ? WHERE id = ?';
 
-  await db.batch([
-    db.prepare(upd).bind(pA.elo + dA, result === 1 ? 1 : 0, result === 0.5 ? 1 : 0, result === 0 ? 1 : 0, pA.id),
-    db.prepare(upd).bind(pB.elo + dB, result === 0 ? 1 : 0, result === 0.5 ? 1 : 0, result === 1 ? 1 : 0, pB.id),
+  try {
+    await db.batch([
+    db.prepare(upd).bind(dA, result === 1 ? 1 : 0, result === 0.5 ? 1 : 0, result === 0 ? 1 : 0, pA.id),
+    db.prepare(upd).bind(dB, result === 0 ? 1 : 0, result === 0.5 ? 1 : 0, result === 1 ? 1 : 0, pB.id),
     db
       .prepare(
         `INSERT INTO matches (id, player_a, player_b, score_a, score_b, delta_a, delta_b, elo_a_after, elo_b_after, played_at, approved_at, screenshot_url, season_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(uid(), entry.player_a, entry.player_b, entry.score_a, entry.score_b, dA, dB, pA.elo + dA, pB.elo + dB, entry.created_at, now(), entry.screenshot_url, season?.id || null),
-    db.prepare('DELETE FROM pending_matches WHERE id = ?').bind(id),
-  ]);
+    ]);
+  } catch (err) {
+    await restore();
+    throw err;
+  }
   return c.json({ success: true });
 });
 
@@ -228,9 +253,12 @@ api.post('/season/reset', requireAdmin, async (c) => {
   const current = await currentSeason(db);
   if (!current) return fail(c, 'No active season found.');
 
+  const stamp = now();
+  const claim = await db.prepare('UPDATE seasons SET ended_at = ? WHERE id = ? AND ended_at IS NULL').bind(stamp, current.id).run();
+  if (claim.meta.changes !== 1) return fail(c, 'That season was already closed. Reload and try again.');
+
   const players = await all(db.prepare('SELECT * FROM players'));
   const count = (await db.prepare('SELECT COUNT(*) AS n FROM seasons').first()).n;
-  const stamp = now();
   const newSeason = { id: uid(), name: nextName || `Season ${count + 1}`, started_at: stamp, ended_at: null };
 
   await db.batch([
@@ -250,7 +278,7 @@ api.post('/season/reset', requireAdmin, async (c) => {
 // Wipe everything and start again from Season 1.
 api.post('/reset', requireAdmin, async (c) => {
   const db = c.env.DB;
-  const tables = ['pending_matches', 'trophies', 'season_archives', 'matches', 'tournament_reports', 'tournament_matches', 'tournament_players', 'tournaments', 'players', 'seasons'];
+  const tables = ['pending_matches', 'trophies', 'season_archives', 'matches', 'tournament_reports', 'tournament_matches', 'tournament_players', 'tournaments', 'players', 'seasons', 'images'];
   await db.batch([
     ...tables.map((t) => db.prepare(`DELETE FROM ${t}`)),
     db.prepare("INSERT INTO seasons (id, name, started_at) VALUES (?, 'Season 1', ?)").bind(uid(), now()),
@@ -318,9 +346,11 @@ api.get('/trophies', async (c) => c.json(await all(c.env.DB.prepare('SELECT * FR
 api.post('/trophies', requireAdmin, async (c) => {
   const { playerId, competitionName, trophyType, count } = await body(c);
   if (!playerId || !competitionName || !trophyType) return fail(c, 'Player, competition name, and trophy type are required.');
+  const howMany = count === undefined || count === null || count === '' ? 1 : Number(count);
+  if (!Number.isInteger(howMany) || howMany < 1 || howMany > 99) return fail(c, 'Count must be a whole number from 1 to 99.');
   const id = uid();
   await c.env.DB.prepare('INSERT INTO trophies (id, player_id, competition_name, trophy_type, count, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(id, playerId, String(competitionName).trim(), String(trophyType), Number.parseInt(count, 10) || 1, now())
+    .bind(id, playerId, String(competitionName).trim(), String(trophyType), howMany, now())
     .run();
   return c.json(await c.env.DB.prepare('SELECT * FROM trophies WHERE id = ?').bind(id).first());
 });
@@ -355,8 +385,16 @@ api.post('/tournaments', requireAdmin, async (c) => {
 api.get('/tournaments/:id', async (c) => {
   const db = c.env.DB;
   const id = c.req.param('id');
-  const tournament = await db.prepare('SELECT * FROM tournaments WHERE id = ?').bind(id).first();
+  let tournament = await db.prepare('SELECT * FROM tournaments WHERE id = ?').bind(id).first();
   if (!tournament) return fail(c, 'Tournament not found.', 404);
+  if (tournament.status === 'active') {
+    try {
+      await advanceStage(db, tournament);
+      tournament = await db.prepare('SELECT * FROM tournaments WHERE id = ?').bind(id).first();
+    } catch (err) {
+      console.error('advanceStage failed', err);
+    }
+  }
   const players = await all(
     db
       .prepare(
@@ -409,10 +447,8 @@ api.post('/tournaments/:id/start', requireAdmin, async (c) => {
   const tournament = await db.prepare('SELECT * FROM tournaments WHERE id = ?').bind(id).first();
   if (!tournament) return fail(c, 'Tournament not found.', 404);
   if (tournament.status !== 'draft') return fail(c, 'Tournament has already started.');
-  const playerIds = (await all(db.prepare('SELECT player_id FROM tournament_players WHERE tournament_id = ?').bind(id))).map((r) => r.player_id);
-  if (playerIds.length < 2) return fail(c, 'Need at least 2 players to start.');
   try {
-    await startTournament(db, tournament, playerIds);
+    await startTournament(db, tournament);
   } catch (err) {
     return fail(c, err.message || 'Failed to start tournament.');
   }
@@ -434,11 +470,9 @@ api.post('/tournaments/:id/matches/:matchId/report', async (c) => {
   const tournamentId = c.req.param('id');
   const matchId = c.req.param('matchId');
   const { scoreA, scoreB, submittedBy, screenshotUrl } = await body(c);
-  const sA = Number.parseInt(scoreA, 10);
-  const sB = Number.parseInt(scoreB, 10);
-  if (!Number.isInteger(sA) || !Number.isInteger(sB) || sA < 0 || sB < 0 || sA > 99 || sB > 99) {
-    return fail(c, 'Enter a final score for both sides.');
-  }
+  const sA = parseScore(scoreA);
+  const sB = parseScore(scoreB);
+  if (sA === null || sB === null) return fail(c, 'Enter a whole-number score from 0 to 99 for both sides.');
   const match = await db.prepare('SELECT * FROM tournament_matches WHERE id = ? AND tournament_id = ?').bind(matchId, tournamentId).first();
   if (!match) return fail(c, 'Match not found.', 404);
   if (match.status === 'played') return fail(c, 'This match already has a result.');
@@ -465,9 +499,20 @@ api.post('/tournaments/:id/reports/:reportId', requireAdmin, async (c) => {
     .bind(c.req.param('reportId'), c.req.param('id'))
     .first();
   if (!report) return fail(c, 'That report no longer exists.', 404);
-  const out = await enterResult(db, report.tournament_id, report.match_id, report.score_a, report.score_b);
-  if (out.error) return fail(c, out.error, out.status);
-  await db.prepare("UPDATE tournament_reports SET status = 'approved' WHERE id = ?").bind(report.id).run();
+  const claim = await db.prepare("UPDATE tournament_reports SET status = 'approved' WHERE id = ? AND status = 'pending'").bind(report.id).run();
+  if (claim.meta.changes !== 1) return fail(c, 'That report no longer exists.', 404);
+  const unclaim = () => db.prepare("UPDATE tournament_reports SET status = 'pending' WHERE id = ?").bind(report.id).run();
+  let out;
+  try {
+    out = await enterResult(db, report.tournament_id, report.match_id, report.score_a, report.score_b);
+  } catch (err) {
+    await unclaim();
+    throw err;
+  }
+  if (out.error) {
+    await unclaim();
+    return fail(c, out.error, out.status);
+  }
   return c.json({ success: true });
 });
 

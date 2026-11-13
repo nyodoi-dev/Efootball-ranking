@@ -1,5 +1,5 @@
 // Tournament engine: fixture generation, result entry, bracket advancement.
-import { eloDelta, uid, now } from './util.js';
+import { eloDelta, uid, now, parseScore } from './util.js';
 
 export function shuffle(arr) {
   const a = [...arr];
@@ -32,7 +32,10 @@ export function roundName(playersLeft) {
 export function firstRoundPairs(entrants, byeOrder = entrants) {
   const size = nextPow2(entrants.length);
   const byeCount = size - entrants.length;
-  const byePlayers = byeOrder.slice(0, byeCount);
+  // Take byes from the preferred order first, then from the remaining entrants,
+  // so there are always exactly as many byes as the bracket needs.
+  const order = [...new Set([...byeOrder, ...entrants])];
+  const byePlayers = order.slice(0, byeCount);
   const byeSet = new Set(byePlayers);
   const rest = entrants.filter((p) => !byeSet.has(p));
 
@@ -45,6 +48,9 @@ export function firstRoundPairs(entrants, byeOrder = entrants) {
     if (byePairs.length) pairs.push(byePairs.shift());
     if (realPairs.length) pairs.push(realPairs.shift());
   }
+  if (pairs.length * 2 !== size || pairs.some(([a]) => !a)) {
+    throw new Error('Could not build a valid bracket for this number of players.');
+  }
   return pairs;
 }
 
@@ -56,7 +62,7 @@ export function bracketStatements(db, tournamentId, pairs) {
     const label = roundName(count * 2);
     rounds.push(
       Array.from({ length: count }, (_, i) => ({
-        id: uid(),
+        id: count === 1 ? `final-${tournamentId}` : uid(),
         tournament_id: tournamentId,
         stage: 'knockout',
         round: label,
@@ -123,7 +129,26 @@ function groupFixtureStatements(db, tournamentId, label, players, startOrder) {
   return stmts;
 }
 
-export async function startTournament(db, tournament, playerIds) {
+export async function startTournament(db, tournament) {
+  const id = tournament.id;
+
+  // Claim the draft first: only one request can start it, and once it is
+  // active the roster can no longer change underneath us.
+  const claim = await db.prepare("UPDATE tournaments SET status = 'active' WHERE id = ? AND status = 'draft'").bind(id).run();
+  if (claim.meta.changes !== 1) throw new Error('Tournament has already started.');
+
+  try {
+    const { results } = await db.prepare('SELECT player_id FROM tournament_players WHERE tournament_id = ?').bind(id).all();
+    const playerIds = results.map((r) => r.player_id);
+    if (playerIds.length < 2) throw new Error('Need at least 2 players to start.');
+    await db.batch(fixtureStatements(db, tournament, playerIds));
+  } catch (err) {
+    await db.prepare("UPDATE tournaments SET status = 'draft' WHERE id = ?").bind(id).run();
+    throw err;
+  }
+}
+
+function fixtureStatements(db, tournament, playerIds) {
   const id = tournament.id;
   const stmts = [];
 
@@ -157,8 +182,7 @@ export async function startTournament(db, tournament, playerIds) {
     stmts.push(...groupFixtureStatements(db, id, 'Round Robin', shuffle(playerIds), 0));
   }
 
-  stmts.push(db.prepare("UPDATE tournaments SET status = 'active' WHERE id = ?").bind(id));
-  await db.batch(stmts);
+  return stmts;
 }
 
 const byStanding = (a, b) =>
@@ -189,7 +213,7 @@ async function generateKnockoutFromGroups(db, tournamentId) {
     const opp = groups[numbers[(i + 1) % numbers.length]][1];
     if (opp) entrants.push(opp.player_id);
   });
-  const byeOrder = [...winners].sort(byStanding).map((r) => r.player_id);
+  const byeOrder = [...[...winners].sort(byStanding), ...[...runners].sort(byStanding)].map((r) => r.player_id);
 
   const pairs = firstRoundPairs(entrants, byeOrder);
   const stmts = bracketStatements(db, tournamentId, pairs);
@@ -201,14 +225,19 @@ async function generateKnockoutFromGroups(db, tournamentId) {
         : db.prepare('UPDATE tournament_players SET eliminated = 1 WHERE id = ?').bind(r.id)
     );
   });
-  await db.batch(stmts);
+  try {
+    await db.batch(stmts);
+  } catch (err) {
+    // Another request created the bracket first; that one stands.
+    if (!/UNIQUE|constraint/i.test(err.message || '')) throw err;
+  }
 }
 
 export async function enterResult(db, tournamentId, matchId, scoreA, scoreB) {
-  const sA = Number.parseInt(scoreA, 10);
-  const sB = Number.parseInt(scoreB, 10);
-  if (!Number.isInteger(sA) || !Number.isInteger(sB) || sA < 0 || sB < 0) {
-    return { status: 400, error: 'Enter scores for both players.' };
+  const sA = parseScore(scoreA);
+  const sB = parseScore(scoreB);
+  if (sA === null || sB === null) {
+    return { status: 400, error: 'Enter a whole-number score from 0 to 99 for both players.' };
   }
 
   const match = await db
@@ -225,13 +254,18 @@ export async function enterResult(db, tournamentId, matchId, scoreA, scoreB) {
   }
 
   const tournament = await db.prepare('SELECT * FROM tournaments WHERE id = ?').bind(tournamentId).first();
+  if (!tournament) return { status: 404, error: 'Tournament not found.' };
   const winnerId = sA > sB ? match.player_a : sA < sB ? match.player_b : null;
   const loserId = winnerId ? (winnerId === match.player_a ? match.player_b : match.player_a) : null;
-  const stmts = [
-    db
-      .prepare("UPDATE tournament_matches SET score_a = ?, score_b = ?, winner_id = ?, status = 'played', played_at = ? WHERE id = ?")
-      .bind(sA, sB, winnerId, now(), matchId),
-  ];
+
+  // Claim the match first. Only one request can move it from pending to
+  // played, so a double tap or two admins cannot count the result twice.
+  const claim = await db
+    .prepare("UPDATE tournament_matches SET score_a = ?, score_b = ?, winner_id = ?, status = 'played', played_at = ? WHERE id = ? AND status = 'pending'")
+    .bind(sA, sB, winnerId, now(), matchId)
+    .run();
+  if (claim.meta.changes !== 1) return { status: 400, error: 'Match already played.' };
+  const stmts = [];
 
   if (tournament.affects_elo) {
     const pA = await db.prepare('SELECT * FROM players WHERE id = ?').bind(match.player_a).first();
@@ -275,15 +309,26 @@ export async function enterResult(db, tournamentId, matchId, scoreA, scoreB) {
     }
   }
 
-  await db.batch(stmts);
+  try {
+    if (stmts.length) await db.batch(stmts);
+  } catch (err) {
+    // Put the match back so the result can be entered again.
+    await db
+      .prepare("UPDATE tournament_matches SET score_a = NULL, score_b = NULL, winner_id = NULL, status = 'pending', played_at = NULL WHERE id = ?")
+      .bind(matchId)
+      .run();
+    throw err;
+  }
+  // If this step fails, loading the tournament runs it again (see advanceStage).
   await advanceStage(db, tournament);
   return { status: 200 };
 }
 
 // After a result: start the knockout once the groups are done, or close the
-// tournament once nothing is left to play.
-async function advanceStage(db, tournament) {
+// tournament once nothing is left to play. Safe to run any number of times.
+export async function advanceStage(db, tournament) {
   const id = tournament.id;
+  if (tournament.status !== 'active') return;
   const pending = await db
     .prepare("SELECT COUNT(*) AS n FROM tournament_matches WHERE tournament_id = ? AND status = 'pending'")
     .bind(id)

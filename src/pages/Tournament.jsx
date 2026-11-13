@@ -5,6 +5,10 @@ import { ArrowLeft, CheckCircle2, Clock, Camera, Upload, Hourglass, X } from 'lu
 import { uploadScreenshot } from '../lib/api';
 
 const ROUND_LABELS = { r32: 'Round of 32', r16: 'Round of 16', qf: 'Quarter-Finals', sf: 'Semi-Finals', f: 'Final' };
+// Works for any bracket size: r64 -> "Round of 64", ordered largest round first.
+const roundSize = (r) => ({ f: 2, sf: 4, qf: 8 }[r] || Number(String(r).slice(1)) || 0);
+const roundLabel = (r) => ROUND_LABELS[r] || (/^r\d+$/.test(r) ? `Round of ${r.slice(1)}` : r);
+
 
 export default function TournamentPage() {
   const { id } = useParams();
@@ -85,8 +89,7 @@ export default function TournamentPage() {
     knockoutByRound[m.round].push(m);
   });
 
-  const knockoutRoundOrder = ['r32', 'r16', 'qf', 'sf', 'f'];
-  const sortedKnockoutRounds = knockoutRoundOrder.filter(r => knockoutByRound[r]);
+  const sortedKnockoutRounds = Object.keys(knockoutByRound).sort((a, b) => roundSize(b) - roundSize(a));
 
   // Organize group stage by group
   const groupByLabel = {};
@@ -216,7 +219,7 @@ export default function TournamentPage() {
             {sortedKnockoutRounds.map(round => (
               <div key={round}>
                 <h3 className="text-sm font-semibold text-[#7A9BAD] uppercase tracking-wide mb-2">
-                  {ROUND_LABELS[round] || round}
+                  {roundLabel(round)}
                 </h3>
                 <div className="space-y-2">
                   {knockoutByRound[round].map(m => (

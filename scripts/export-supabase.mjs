@@ -1,7 +1,7 @@
 // One-off migration helper: pulls the league data and images out of the old
 // Supabase project and writes
 //   data/export.json   raw rows
-//   data/images/*      resized pictures
+//   public/img/*       resized pictures, served by the site at /img/...
 //   data/seed.sql      INSERT statements for the new D1 database
 //
 // Usage: SUPABASE_URL=... SUPABASE_ANON_KEY=... node scripts/export-supabase.mjs
@@ -37,7 +37,7 @@ const sql = (v) => {
   return `'${String(v).replace(/'/g, "''")}'`;
 };
 
-const imageDir = path.resolve('data/images');
+const imageDir = path.resolve('public/img');
 await mkdir(imageDir, { recursive: true });
 const imageMap = {}; // old url -> new /img/ path
 
@@ -108,6 +108,17 @@ for (const a of data.season_archives) {
 for (const t of data.trophies) {
   insert('trophies', ['id', 'player_id', 'competition_name', 'trophy_type', 'count', 'created_at'],
     { ...t, created_at: iso(t.created_at) });
+}
+for (const t of data.tournaments) {
+  insert('tournaments', ['id', 'name', 'format', 'status', 'affects_elo', 'groups_count', 'group_size', 'champion_id', 'created_at', 'completed_at'],
+    { ...t, created_at: iso(t.created_at), completed_at: iso(t.completed_at) });
+}
+for (const p of data.tournament_players) {
+  insert('tournament_players', ['id', 'tournament_id', 'player_id', 'group_number', 'group_wins', 'group_draws', 'group_losses', 'group_goals_for', 'group_goals_against', 'group_points', 'knockout_round', 'eliminated'], p);
+}
+for (const m of data.tournament_matches) {
+  insert('tournament_matches', ['id', 'tournament_id', 'stage', 'round', 'match_order', 'player_a', 'player_b', 'score_a', 'score_b', 'winner_id', 'status', 'next_match_id', 'next_match_slot', 'played_at', 'created_at'],
+    { ...m, played_at: iso(m.played_at), created_at: iso(m.created_at) });
 }
 await writeFile('data/seed.sql', out.join('\n') + '\n');
 console.log(`Wrote data/seed.sql (${out.length} rows) and ${Object.keys(imageMap).length} pictures.`);

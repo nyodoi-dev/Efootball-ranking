@@ -7,6 +7,13 @@ export function eloDelta(ra, rb, result) {
 }
 
 export const uid = () => crypto.randomUUID();
+
+// A football score: a whole number from 0 to 99. Returns null for anything else
+// (so "2.5", "abc", "" and 150 are refused rather than silently rounded).
+export function parseScore(value) {
+  const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+  return Number.isInteger(n) && n >= 0 && n <= 99 ? n : null;
+}
 export const now = () => new Date().toISOString();
 
 // ── Admin session: a signed, expiring cookie ────────────────────────────────
