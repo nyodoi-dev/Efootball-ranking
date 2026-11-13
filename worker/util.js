@@ -57,3 +57,50 @@ export async function isAdmin(env, cookieHeader) {
   if (!exp || !sig || Number(exp) < Date.now()) return false;
   return safeEqual(sig, await hmac(env.ADMIN_PASSWORD, `session:${exp}`));
 }
+
+// ── Rate limiting: fixed windows counted in D1 ──────────────────────────────
+export const clientIp = (c) => c.req.header('CF-Connecting-IP') || 'unknown';
+
+const bucketOf = (windowSeconds) => Math.floor(Date.now() / 1000 / windowSeconds);
+
+// Count one more use of `key` in the current window and return the new total.
+export async function hit(db, key, windowSeconds) {
+  const bucket = bucketOf(windowSeconds);
+  const expires = (bucket + 1) * windowSeconds;
+  if (Math.random() < 0.05) {
+    await db.prepare('DELETE FROM rate_limits WHERE expires_at < ?').bind(Math.floor(Date.now() / 1000)).run();
+  }
+  const row = await db
+    .prepare(
+      `INSERT INTO rate_limits (key, bucket, count, expires_at) VALUES (?, ?, 1, ?)
+       ON CONFLICT (key, bucket) DO UPDATE SET count = count + 1 RETURNING count`
+    )
+    .bind(key, bucket, expires)
+    .first();
+  return row.count;
+}
+
+// How many uses of `key` so far in the current window, without adding one.
+export async function attempts(db, key, windowSeconds) {
+  const row = await db.prepare('SELECT count FROM rate_limits WHERE key = ? AND bucket = ?').bind(key, bucketOf(windowSeconds)).first();
+  return row?.count || 0;
+}
+
+// ── Player PINs ─────────────────────────────────────────────────────────────
+export const validPin = (pin) => typeof pin === 'string' && /^\d{4,8}$/.test(pin);
+
+export function newSalt() {
+  return [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// A short PIN cannot be made safe against someone who has the database, so
+// this is kept light; guessing through the site is what the rate limits stop.
+export async function hashPin(pin, salt) {
+  const key = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(salt), iterations: 10000 }, key, 256);
+  return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function pinMatches(pin, row) {
+  return validPin(pin) && safeEqual(await hashPin(pin, row.salt), row.pin_hash);
+}

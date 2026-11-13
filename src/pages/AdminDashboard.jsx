@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import {
-  LogOut, Plus, Pencil, Trash2, Check, X,
+  LogOut, Plus, Pencil, Trash2, Check, X, KeyRound,
   ListChecks, Users, RotateCcw, Save, ShieldCheck, Trophy, AlertTriangle,
 } from 'lucide-react';
 import { signOut } from '../lib/api';
@@ -110,6 +110,17 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (!res.ok) { setMessage({ type: 'error', text: data.error || 'Could not save.' }); }
       else { cancelEdit(); await loadAll(); }
+    } catch { setMessage({ type: 'error', text: 'Network error.' }); }
+    setBusy(false);
+  }
+
+  async function resetPin(id) {
+    if (!window.confirm(`Reset the profile PIN for ${playerName(id)}? They can then choose a new one.`)) return;
+    setBusy(true); setMessage(null);
+    try {
+      const res = await fetch(`/api/players/${id}/pin`, { method: 'DELETE' });
+      if (!res.ok) setMessage({ type: 'error', text: 'Could not reset the PIN.' });
+      else { setMessage({ type: 'success', text: `PIN reset for ${playerName(id)}.` }); await loadAll(); }
     } catch { setMessage({ type: 'error', text: 'Network error.' }); }
     setBusy(false);
   }
@@ -330,7 +341,13 @@ export default function AdminDashboard() {
                           <div className="font-medium truncate">{p.name}</div>
                           <div className="text-muted text-xs mt-0.5">ELO {p.elo} · {p.wins}W {p.draws}D {p.losses}L</div>
                         </div>
-                        <button onClick={() => startEdit(p)}
+                        {p.has_pin && (
+                          <button onClick={() => resetPin(p.id)} disabled={busy} title="Reset profile PIN" aria-label={`Reset profile PIN for ${p.name}`}
+                            className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm border border-white/10 text-muted hover:text-chalk disabled:opacity-60">
+                            <KeyRound size={14} />
+                          </button>
+                        )}
+                        <button onClick={() => startEdit(p)} aria-label={`Edit ${p.name}`}
                           className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm border border-white/10 text-muted hover:text-chalk">
                           <Pencil size={14} />
                         </button>

@@ -138,3 +138,21 @@ CREATE TABLE IF NOT EXISTS tournament_reports (
 );
 CREATE INDEX IF NOT EXISTS idx_treports_tournament ON tournament_reports (tournament_id);
 CREATE INDEX IF NOT EXISTS idx_treports_match ON tournament_reports (match_id, status);
+
+-- A player's PIN locks their profile so only they (or an admin) can edit it.
+-- Kept apart from the players table so hashes never appear in player lists.
+CREATE TABLE IF NOT EXISTS player_pins (
+  player_id TEXT PRIMARY KEY,
+  salt TEXT NOT NULL,
+  pin_hash TEXT NOT NULL,
+  set_at TEXT NOT NULL
+);
+
+-- Counters for rate limiting, one row per key per time window.
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT NOT NULL,
+  bucket INTEGER NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  expires_at INTEGER NOT NULL,
+  PRIMARY KEY (key, bucket)
+);

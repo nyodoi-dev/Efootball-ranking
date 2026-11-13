@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import {
   START_ELO, eloDelta, uid, now, parseScore,
   checkPassword, sessionCookie, clearCookie, isAdmin,
+  clientIp, hit, attempts, validPin, newSalt, hashPin, pinMatches,
 } from './util.js';
 import { startTournament, enterResult, advanceStage } from './tournaments.js';
 
@@ -11,6 +12,14 @@ const api = new Hono();
 const fail = (c, error, status = 400) => c.json({ error }, status);
 const body = (c) => c.req.json().catch(() => ({}));
 const all = async (stmt) => (await stmt.all()).results;
+
+const HOUR = 3600;
+const tooMany = (c, message) => fail(c, message, 429);
+
+// Per-visitor limit for the write endpoints that need no login.
+async function overLimit(c, action, limit) {
+  return (await hit(c.env.DB, `${action}:${clientIp(c)}`, HOUR)) > limit;
+}
 
 const requireAdmin = async (c, next) => {
   if (!(await isAdmin(c.env, c.req.header('Cookie')))) return fail(c, 'Admin login required.', 401);
@@ -41,8 +50,13 @@ api.onError((err, c) => {
 // ── Auth ────────────────────────────────────────────────────────────────────
 api.post('/auth/login', async (c) => {
   if (!c.env.ADMIN_PASSWORD) return fail(c, 'No admin password has been set for this site yet.', 500);
+  const loginKey = `login:${clientIp(c)}`;
+  if ((await attempts(c.env.DB, loginKey, 900)) >= 8) {
+    return tooMany(c, 'Too many wrong passwords. Try again in 15 minutes.');
+  }
   const { password } = await body(c);
   if (!(await checkPassword(c.env, password))) {
+    await hit(c.env.DB, loginKey, 900);
     await new Promise((r) => setTimeout(r, 600)); // slow down guessing
     return fail(c, 'Wrong password.', 401);
   }
@@ -58,7 +72,11 @@ api.post('/auth/logout', (c) => {
 api.get('/auth/me', async (c) => c.json({ admin: await isAdmin(c.env, c.req.header('Cookie')) }));
 
 // ── Players ─────────────────────────────────────────────────────────────────
-api.get('/players', async (c) => c.json(await all(c.env.DB.prepare('SELECT * FROM players ORDER BY elo DESC, name'))));
+const PLAYER = 'SELECT p.*, EXISTS (SELECT 1 FROM player_pins x WHERE x.player_id = p.id) AS has_pin FROM players p';
+const playerOut = (p) => p && { ...p, has_pin: !!p.has_pin };
+const playerById = async (db, id) => playerOut(await db.prepare(`${PLAYER} WHERE p.id = ?`).bind(id).first());
+
+api.get('/players', async (c) => c.json((await all(c.env.DB.prepare(`${PLAYER} ORDER BY p.elo DESC, p.name`))).map(playerOut)));
 
 api.post('/players', requireAdmin, async (c) => {
   const name = String((await body(c)).name || '').trim();
@@ -67,14 +85,17 @@ api.post('/players', requireAdmin, async (c) => {
   if (existing) return fail(c, 'That name is already on the table.');
   const id = uid();
   await c.env.DB.prepare('INSERT INTO players (id, name, elo, created_at) VALUES (?, ?, ?, ?)').bind(id, name, START_ELO, now()).run();
-  return c.json(await c.env.DB.prepare('SELECT * FROM players WHERE id = ?').bind(id).first());
+  return c.json(await playerById(c.env.DB, id));
 });
 
 const isImagePath = (v) => typeof v === 'string' && /^\/(api\/)?img\/[\w.-]+$/.test(v);
 
 async function updatePlayer(c, id, updates) {
   const cols = Object.keys(updates);
-  if (cols.length === 0) return fail(c, 'Nothing to update.');
+  if (cols.length === 0) {
+    const unchanged = await playerById(c.env.DB, id);
+    return unchanged ? c.json(unchanged) : fail(c, 'Player not found.', 404);
+  }
   try {
     await c.env.DB.prepare(`UPDATE players SET ${cols.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
       .bind(...cols.map((k) => updates[k]), id)
@@ -82,7 +103,7 @@ async function updatePlayer(c, id, updates) {
   } catch (err) {
     return fail(c, /UNIQUE/.test(err.message) ? 'That name is already on the table.' : err.message);
   }
-  const player = await c.env.DB.prepare('SELECT * FROM players WHERE id = ?').bind(id).first();
+  const player = await playerById(c.env.DB, id);
   return player ? c.json(player) : fail(c, 'Player not found.', 404);
 }
 
@@ -104,16 +125,58 @@ api.put('/players/:id', requireAdmin, async (c) => {
   return updatePlayer(c, c.req.param('id'), updates);
 });
 
-// Open to anyone: a member sets their own team picture and highest rank.
+// A member sets their own team picture and highest rank. The first edit
+// chooses a PIN that locks the profile; later edits need that PIN. Admins
+// can edit without it and can clear a forgotten PIN.
 api.put('/players/:id/profile', async (c) => {
+  const db = c.env.DB;
+  const id = c.req.param('id');
   const b = await body(c);
+  if (!(await db.prepare('SELECT id FROM players WHERE id = ?').bind(id).first())) return fail(c, 'Player not found.', 404);
+
+  if (!(await isAdmin(c.env, c.req.header('Cookie')))) {
+    if (await overLimit(c, 'profile', 30)) return tooMany(c, 'Too many profile changes. Try again later.');
+    const row = await db.prepare('SELECT * FROM player_pins WHERE player_id = ?').bind(id).first();
+    if (row) {
+      const mine = `pin:${id}:${clientIp(c)}`;
+      const anyone = `pin:${id}`;
+      if ((await attempts(db, mine, 900)) >= 5 || (await attempts(db, anyone, HOUR)) >= 20) {
+        return tooMany(c, 'Too many wrong PINs for this profile. Try again later, or ask an admin to reset it.');
+      }
+      if (!(await pinMatches(b.pin, row))) {
+        await hit(db, mine, 900);
+        await hit(db, anyone, HOUR);
+        return fail(c, 'Wrong PIN.', 403);
+      }
+      if (b.newPin !== undefined && b.newPin !== '') {
+        if (!validPin(b.newPin)) return fail(c, 'A PIN is 4 to 8 digits.');
+        const salt = newSalt();
+        await db.prepare('UPDATE player_pins SET salt = ?, pin_hash = ?, set_at = ? WHERE player_id = ?').bind(salt, await hashPin(b.newPin, salt), now(), id).run();
+      }
+    } else {
+      if (!validPin(b.newPin)) return fail(c, 'Choose a PIN of 4 to 8 digits to lock this profile.');
+      const salt = newSalt();
+      const claim = await db
+        .prepare('INSERT OR IGNORE INTO player_pins (player_id, salt, pin_hash, set_at) VALUES (?, ?, ?, ?)')
+        .bind(id, salt, await hashPin(b.newPin, salt), now())
+        .run();
+      if (claim.meta.changes !== 1) return fail(c, 'This profile was just locked by someone else. Reload the page.', 409);
+    }
+  }
+
   const updates = {};
   if (b.teamPictureUrl !== undefined) {
     if (!isImagePath(b.teamPictureUrl)) return fail(c, 'Upload the picture first.');
     updates.team_picture_url = b.teamPictureUrl;
   }
   if (b.highestRank !== undefined) updates.highest_rank = String(b.highestRank).trim().slice(0, 60);
-  return updatePlayer(c, c.req.param('id'), updates);
+  return updatePlayer(c, id, updates);
+});
+
+// Admin: clear a forgotten PIN so the player can choose a new one.
+api.delete('/players/:id/pin', requireAdmin, async (c) => {
+  await c.env.DB.prepare('DELETE FROM player_pins WHERE player_id = ?').bind(c.req.param('id')).run();
+  return c.json({ success: true });
 });
 
 api.delete('/players/:id', requireAdmin, async (c) => {
@@ -131,6 +194,7 @@ api.delete('/players/:id', requireAdmin, async (c) => {
     db.prepare('DELETE FROM matches WHERE player_a = ?1 OR player_b = ?1').bind(id),
     db.prepare('DELETE FROM pending_matches WHERE player_a = ?1 OR player_b = ?1').bind(id),
     db.prepare('DELETE FROM trophies WHERE player_id = ?').bind(id),
+    db.prepare('DELETE FROM player_pins WHERE player_id = ?').bind(id),
     db.prepare('UPDATE season_archives SET player_id = NULL WHERE player_id = ?').bind(id),
     db.prepare("DELETE FROM tournament_players WHERE player_id = ? AND tournament_id IN (SELECT id FROM tournaments WHERE status = 'draft')").bind(id),
     db.prepare('DELETE FROM players WHERE id = ?').bind(id),
@@ -162,6 +226,10 @@ api.get('/head-to-head', async (c) => {
 api.get('/pending', async (c) => c.json(await all(c.env.DB.prepare('SELECT * FROM pending_matches ORDER BY created_at'))));
 
 api.post('/pending', async (c) => {
+  if (await overLimit(c, 'report', 15)) return tooMany(c, 'Too many results reported from here. Try again in an hour.');
+  if ((await c.env.DB.prepare('SELECT COUNT(*) AS n FROM pending_matches').first()).n >= 200) {
+    return tooMany(c, 'Too many results are waiting for approval. Ask an admin to clear the queue.');
+  }
   const { playerA, playerB, scoreA, scoreB, submittedBy, screenshotUrl } = await body(c);
   if (!playerA || !playerB || playerA === playerB) return fail(c, 'Pick two different players.');
   const sA = parseScore(scoreA);
@@ -278,7 +346,7 @@ api.post('/season/reset', requireAdmin, async (c) => {
 // Wipe everything and start again from Season 1.
 api.post('/reset', requireAdmin, async (c) => {
   const db = c.env.DB;
-  const tables = ['pending_matches', 'trophies', 'season_archives', 'matches', 'tournament_reports', 'tournament_matches', 'tournament_players', 'tournaments', 'players', 'seasons', 'images'];
+  const tables = ['pending_matches', 'trophies', 'season_archives', 'matches', 'tournament_reports', 'tournament_matches', 'tournament_players', 'tournaments', 'players', 'player_pins', 'seasons', 'images'];
   await db.batch([
     ...tables.map((t) => db.prepare(`DELETE FROM ${t}`)),
     db.prepare("INSERT INTO seasons (id, name, started_at) VALUES (?, 'Season 1', ?)").bind(uid(), now()),
@@ -467,6 +535,7 @@ api.post('/tournaments/:id/matches/:matchId', requireAdmin, async (c) => {
 // It only counts once an admin approves it.
 api.post('/tournaments/:id/matches/:matchId/report', async (c) => {
   const db = c.env.DB;
+  if (await overLimit(c, 'treport', 30)) return tooMany(c, 'Too many results reported from here. Try again in an hour.');
   const tournamentId = c.req.param('id');
   const matchId = c.req.param('matchId');
   const { scoreA, scoreB, submittedBy, screenshotUrl } = await body(c);
@@ -531,10 +600,25 @@ const MAX_IMAGES = 3000;
 api.post('/upload', async (c) => {
   const type = (c.req.header('Content-Type') || '').split(';')[0].trim();
   if (!IMAGE_TYPES.includes(type)) return fail(c, 'Only JPEG, PNG or WebP pictures are accepted.');
+  // Refuse oversized uploads before reading them.
+  if (Number(c.req.header('Content-Length') || 0) > MAX_IMAGE_BYTES) return fail(c, 'That picture is too large.', 413);
+  if (await overLimit(c, 'upload', 20)) return tooMany(c, 'Too many pictures uploaded from here. Try again in an hour.');
   const data = await c.req.arrayBuffer();
   if (data.byteLength === 0) return fail(c, 'The picture was empty.');
   if (data.byteLength > MAX_IMAGE_BYTES) return fail(c, 'That picture is too large.', 413);
   const db = c.env.DB;
+  // Drop pictures uploaded over a day ago that nothing points to any more
+  // (abandoned forms, replaced team pictures, rejected reports).
+  await db
+    .prepare(
+      `DELETE FROM images WHERE created_at < ? AND ('/api/img/' || id) NOT IN (
+         SELECT team_picture_url FROM players WHERE team_picture_url IS NOT NULL
+         UNION SELECT screenshot_url FROM matches WHERE screenshot_url IS NOT NULL
+         UNION SELECT screenshot_url FROM pending_matches WHERE screenshot_url IS NOT NULL
+         UNION SELECT screenshot_url FROM tournament_reports WHERE screenshot_url IS NOT NULL)`
+    )
+    .bind(new Date(Date.now() - 86400000).toISOString())
+    .run();
   if ((await db.prepare('SELECT COUNT(*) AS n FROM images').first()).n >= MAX_IMAGES) return fail(c, 'Picture storage is full.', 507);
   const id = uid().replace(/-/g, '');
   await db.prepare('INSERT INTO images (id, content_type, data, created_at) VALUES (?, ?, ?, ?)').bind(id, type, data, now()).run();

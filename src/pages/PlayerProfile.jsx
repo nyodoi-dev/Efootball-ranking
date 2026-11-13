@@ -33,6 +33,7 @@ export default function PlayerProfile() {
   const [pictureFile, setPictureFile] = useState(null);
   const [saving, setSaving]       = useState(false);
   const [message, setMessage]     = useState(null);
+  const [pin, setPin]             = useState('');
 
   useEffect(() => { load(); }, [id]);
 
@@ -70,7 +71,11 @@ export default function PlayerProfile() {
         try { teamPictureUrl = await uploadTeamPicture(pictureFile); }
         catch { setMessage({ type: 'error', text: 'Picture upload failed.' }); setSaving(false); return; }
       }
-      const body = { highestRank: rankInput };
+      if (!/^\d{4,8}$/.test(pin)) {
+        setMessage({ type: 'error', text: player.has_pin ? 'Enter your PIN to save.' : 'Choose a PIN of 4 to 8 digits to lock your profile.' });
+        setSaving(false); return;
+      }
+      const body = { highestRank: rankInput, ...(player.has_pin ? { pin } : { newPin: pin }) };
       if (teamPictureUrl) body.teamPictureUrl = teamPictureUrl;
       const res = await fetch(`/api/players/${id}/profile`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -182,6 +187,19 @@ export default function PlayerProfile() {
               </label>
               <input value={rankInput} onChange={(e) => setRankInput(e.target.value)}
                 placeholder="e.g. Division 1, Legend" className={inputCls} />
+            </div>
+            <div>
+              <label htmlFor="profile-pin" className="block text-[#4A6273] text-xs uppercase tracking-wide mb-1.5">
+                {player.has_pin ? 'Your PIN' : 'Choose a PIN (4 to 8 digits)'}
+              </label>
+              <input id="profile-pin" type="password" inputMode="numeric" autoComplete="off" maxLength={8}
+                value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                placeholder={player.has_pin ? 'PIN' : 'e.g. 4821'} className={inputCls} />
+              <p className="text-[#4A6273] text-xs mt-1.5">
+                {player.has_pin
+                  ? 'Only the person with this PIN can change this profile. Forgot it? Ask an admin to reset it.'
+                  : 'This locks the profile to you. You will need the PIN for every later change.'}
+              </p>
             </div>
             {message && (
               <div className={`rounded-xl px-4 py-3 text-sm ${
