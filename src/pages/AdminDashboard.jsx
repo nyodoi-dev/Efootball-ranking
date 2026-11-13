@@ -17,8 +17,8 @@ const TROPHY_TYPES = [
   { value: 'season_mvp',  label: '🏅 Season MVP',    color: '#8B5CF6' },
 ];
 
-const inputCls = 'w-full rounded-md px-3 py-2 text-sm bg-panelAlt border border-white/10 text-chalk';
-const selectCls = 'w-full rounded-md px-3 py-2 text-sm bg-panelAlt border border-white/10 text-chalk';
+const inputCls = 'w-full rounded-md px-3 py-2 text-sm bg-panelAlt border border-line text-chalk';
+const selectCls = 'w-full rounded-md px-3 py-2 text-sm bg-panelAlt border border-line text-chalk';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -239,7 +239,7 @@ export default function AdminDashboard() {
       <header className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-2">
           <ShieldCheck size={22} className="text-lime" />
-          <h1 className="font-display font-bold text-3xl uppercase tracking-wide">Admin</h1>
+          <h1 className="font-display font-bold text-3xl">Admin</h1>
         </div>
         <button onClick={handleLogout} className="flex items-center gap-2 text-sm text-muted hover:text-chalk">
           <LogOut size={16} /> Sign out
@@ -258,27 +258,27 @@ export default function AdminDashboard() {
 
           {/* ── Pending results ── */}
           <section>
-            <h2 className="flex items-center gap-2 font-display font-semibold text-2xl uppercase tracking-wide mb-3">
+            <h2 className="flex items-center gap-2 font-display font-semibold text-2xl mb-3">
               <ListChecks size={20} /> Pending Results
             </h2>
             {pending.length === 0 ? (
-              <div className="bg-panel border border-white/10 rounded-lg p-4 text-muted text-sm">Nothing awaiting approval.</div>
+              <div className="bg-panel border border-line rounded-lg p-4 text-muted text-sm">Nothing awaiting approval.</div>
             ) : (
               <div className="space-y-3">
                 {pending.map((entry) => (
-                  <div key={entry.id} className="bg-panel border border-white/10 rounded-lg p-4">
+                  <div key={entry.id} className="bg-panel border border-line rounded-lg p-4">
                     <div className="font-mono text-sm">
                       {playerName(entry.player_a)} {entry.score_a} – {entry.score_b} {playerName(entry.player_b)}
                     </div>
                     {entry.submitted_by && <div className="text-muted text-xs mt-1">Reported by {entry.submitted_by}</div>}
                     {entry.screenshot_url && (
                       <a href={entry.screenshot_url} target="_blank" rel="noopener noreferrer" className="block mt-3">
-                        <img src={entry.screenshot_url} alt="Screenshot" className="max-h-48 rounded-md border border-white/10 object-contain" />
+                        <img src={entry.screenshot_url} alt="Screenshot" className="max-h-48 rounded-md border border-line object-contain" />
                       </a>
                     )}
                     <div className="flex gap-2 mt-3">
                       <button onClick={() => approveMatch(entry.id)} disabled={busy}
-                        className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium bg-lime text-pitch disabled:opacity-60">
+                        className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium bg-brand text-onBrand disabled:opacity-60">
                         <Check size={14} /> Approve
                       </button>
                       <button onClick={() => rejectMatch(entry.id)} disabled={busy}
@@ -294,43 +294,43 @@ export default function AdminDashboard() {
 
           {/* ── Roster ── */}
           <section>
-            <h2 className="flex items-center gap-2 font-display font-semibold text-2xl uppercase tracking-wide mb-3">
+            <h2 className="flex items-center gap-2 font-display font-semibold text-2xl mb-3">
               <Users size={20} /> Roster
             </h2>
-            <div className="bg-panel border border-white/10 rounded-lg overflow-hidden">
+            <div className="bg-panel border border-line rounded-lg overflow-hidden">
               {players.length === 0 ? (
                 <div className="p-4 text-muted text-sm">No players yet.</div>
               ) : (
                 players.map((p, i) => (
-                  <div key={p.id} className={`p-4 ${i === players.length - 1 ? '' : 'border-b border-white/10'}`}>
+                  <div key={p.id} className={`p-4 ${i === players.length - 1 ? '' : 'border-b border-line'}`}>
                     {editingId === p.id ? (
                       <div className="space-y-2">
                         <div>
-                          <label className="block text-muted text-xs uppercase tracking-wide mb-1">Name</label>
+                          <label className="block text-muted text-xs mb-1">Name</label>
                           <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className={inputCls} />
                         </div>
                         <div className="grid grid-cols-4 gap-2">
                           {['elo', 'wins', 'draws', 'losses'].map((field) => (
                             <div key={field}>
-                              <label className="block text-muted text-xs uppercase tracking-wide mb-1 capitalize">{field}</label>
+                              <label className="block text-muted text-xs mb-1 capitalize">{field}</label>
                               <input type="number" value={editForm[field]}
                                 onChange={(e) => setEditForm({ ...editForm, [field]: e.target.value })}
-                                className="w-full rounded-md px-2 py-2 text-sm bg-panelAlt border border-white/10 text-chalk font-mono" />
+                                className="w-full rounded-md px-2 py-2 text-sm bg-panelAlt border border-line text-chalk font-mono" />
                             </div>
                           ))}
                         </div>
                         <div>
-                          <label className="block text-muted text-xs uppercase tracking-wide mb-1">Highest eFootball rank</label>
+                          <label className="block text-muted text-xs mb-1">Highest eFootball rank</label>
                           <input value={editForm.highest_rank} onChange={(e) => setEditForm({ ...editForm, highest_rank: e.target.value })}
                             placeholder="e.g. Division 1, Legend" className={inputCls} />
                         </div>
                         <div className="flex gap-2 pt-1">
                           <button onClick={() => saveEdit(p.id)} disabled={busy}
-                            className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium bg-lime text-pitch disabled:opacity-60">
+                            className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium bg-brand text-onBrand disabled:opacity-60">
                             <Save size={14} /> Save
                           </button>
                           <button onClick={cancelEdit}
-                            className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium border border-white/10 text-muted">
+                            className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium border border-line text-muted">
                             Cancel
                           </button>
                         </div>
@@ -343,12 +343,12 @@ export default function AdminDashboard() {
                         </div>
                         {p.has_pin && (
                           <button onClick={() => resetPin(p.id)} disabled={busy} title="Reset profile PIN" aria-label={`Reset profile PIN for ${p.name}`}
-                            className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm border border-white/10 text-muted hover:text-chalk disabled:opacity-60">
+                            className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm border border-line text-muted hover:text-chalk disabled:opacity-60">
                             <KeyRound size={14} />
                           </button>
                         )}
                         <button onClick={() => startEdit(p)} aria-label={`Edit ${p.name}`}
-                          className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm border border-white/10 text-muted hover:text-chalk">
+                          className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm border border-line text-muted hover:text-chalk">
                           <Pencil size={14} />
                         </button>
                         <button onClick={() => deletePlayer(p.id)} disabled={busy}
@@ -364,9 +364,9 @@ export default function AdminDashboard() {
             <div className="mt-4 flex gap-2">
               <input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addPlayer()}
-                placeholder="New player name" className="flex-1 rounded-md px-3 py-2 text-sm bg-panel border border-white/10 text-chalk" />
+                placeholder="New player name" className="flex-1 rounded-md px-3 py-2 text-sm bg-panel border border-line text-chalk" />
               <button onClick={addPlayer} disabled={busy}
-                className="flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium bg-lime text-pitch disabled:opacity-60">
+                className="flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium bg-brand text-onBrand disabled:opacity-60">
                 <Plus size={16} /> Add
               </button>
             </div>
@@ -374,13 +374,13 @@ export default function AdminDashboard() {
 
           {/* ── Hall of Fame / Trophies ── */}
           <section>
-            <h2 className="flex items-center gap-2 font-display font-semibold text-2xl uppercase tracking-wide mb-3">
+            <h2 className="flex items-center gap-2 font-display font-semibold text-2xl mb-3">
               <Trophy size={20} /> Hall of Fame Trophies
             </h2>
 
             {/* Add trophy form */}
-            <div className="bg-panel border border-white/10 rounded-lg p-4 mb-4 space-y-3">
-              <p className="text-muted text-xs uppercase tracking-wide">Add a trophy</p>
+            <div className="bg-panel border border-line rounded-lg p-4 mb-4 space-y-3">
+              <p className="text-muted text-xs">Add a trophy</p>
               <div>
                 <label className="block text-muted text-xs mb-1">Player</label>
                 <select value={trophyPlayer} onChange={(e) => setTrophyPlayer(e.target.value)} className={selectCls}>
@@ -403,24 +403,24 @@ export default function AdminDashboard() {
               <div>
                 <label className="block text-muted text-xs mb-1">Count (how many times)</label>
                 <input type="number" min={1} value={trophyCount} onChange={(e) => setTrophyCount(e.target.value)}
-                  className="w-24 rounded-md px-3 py-2 text-sm bg-panelAlt border border-white/10 text-chalk font-mono" />
+                  className="w-24 rounded-md px-3 py-2 text-sm bg-panelAlt border border-line text-chalk font-mono" />
               </div>
               {trophyMsg && (
                 <p className={`text-sm ${trophyMsg.type === 'error' ? 'text-coral' : 'text-lime'}`}>{trophyMsg.text}</p>
               )}
               <button onClick={addTrophy} disabled={busy}
-                className="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium bg-lime text-pitch disabled:opacity-60">
+                className="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium bg-brand text-onBrand disabled:opacity-60">
                 <Plus size={16} /> Add Trophy
               </button>
             </div>
 
             {/* Existing trophies grouped by player */}
             {Object.keys(trophiesByPlayer).length === 0 ? (
-              <div className="bg-panel border border-white/10 rounded-lg p-4 text-muted text-sm">No trophies added yet.</div>
+              <div className="bg-panel border border-line rounded-lg p-4 text-muted text-sm">No trophies added yet.</div>
             ) : (
               <div className="space-y-3">
                 {Object.entries(trophiesByPlayer).map(([pid, pts]) => (
-                  <div key={pid} className="bg-panel border border-white/10 rounded-lg p-4">
+                  <div key={pid} className="bg-panel border border-line rounded-lg p-4">
                     <p className="font-semibold text-chalk mb-2">{playerName(pid)}</p>
                     <div className="space-y-2">
                       {pts.map((t) => {
@@ -448,11 +448,11 @@ export default function AdminDashboard() {
             )}
           </section>
 <section>
-  <h2 className="flex items-center gap-2 font-display font-semibold text-2xl uppercase tracking-wide mb-3">
+  <h2 className="flex items-center gap-2 font-display font-semibold text-2xl mb-3">
     <Trophy size={20} /> Tournaments
   </h2>
   <Link to="/admin/tournaments"
-    className="flex items-center gap-3 bg-panel border border-white/10 rounded-lg px-4 py-3 hover:bg-panelAlt transition-colors">
+    className="flex items-center gap-3 bg-panel border border-line rounded-lg px-4 py-3 hover:bg-panelAlt transition-colors">
     <Trophy size={18} className="text-lime flex-shrink-0" />
     <div className="flex-1">
       <p className="font-medium text-sm">Manage Tournaments</p>
@@ -463,10 +463,10 @@ export default function AdminDashboard() {
 </section>
           {/* ── Season ── */}
           <section>
-            <h2 className="flex items-center gap-2 font-display font-semibold text-2xl uppercase tracking-wide mb-3">
+            <h2 className="flex items-center gap-2 font-display font-semibold text-2xl mb-3">
               <RotateCcw size={20} /> Season
             </h2>
-            <div className="bg-panel border border-white/10 rounded-lg p-4">
+            <div className="bg-panel border border-line rounded-lg p-4">
               <p className="text-sm mb-1">Current: <span className="font-medium">{season?.current?.name || 'None'}</span></p>
               <p className="text-muted text-xs mb-4">
                 Resetting archives everyone's ELO and resets all players to 1000 with a clean 0–0–0 record.
@@ -480,22 +480,22 @@ export default function AdminDashboard() {
                 <div className="space-y-2">
                   <input value={nextSeasonName} onChange={(e) => setNextSeasonName(e.target.value)}
                     placeholder={`Season name (e.g. "Season 2")`}
-                    className="w-full rounded-md px-3 py-2 text-sm bg-panelAlt border border-white/10 text-chalk" />
+                    className="w-full rounded-md px-3 py-2 text-sm bg-panelAlt border border-line text-chalk" />
                   <div className="flex gap-2">
                     <button onClick={resetSeason} disabled={busy}
                       className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium bg-coral text-pitch disabled:opacity-60">
                       <ShieldCheck size={16} /> Confirm reset
                     </button>
                     <button onClick={() => setResetConfirming(false)}
-                      className="rounded-md px-3 py-2 text-sm font-medium border border-white/10 text-muted">
+                      className="rounded-md px-3 py-2 text-sm font-medium border border-line text-muted">
                       Cancel
                     </button>
                   </div>
                 </div>
               )}
               {season?.past?.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-white/10">
-                  <p className="text-muted text-xs uppercase tracking-wide mb-2">Past seasons</p>
+                <div className="mt-4 pt-4 border-t border-line">
+                  <p className="text-muted text-xs mb-2">Past seasons</p>
                   {season.past.map((s) => (
                     <div key={s.id} className="text-sm mb-1">{s.name} — ended {new Date(s.ended_at).toLocaleDateString()}</div>
                   ))}
@@ -505,7 +505,7 @@ export default function AdminDashboard() {
           </section>
           {/* ── Full Reset ── */}
           <section>
-            <h2 className="flex items-center gap-2 font-display font-semibold text-2xl uppercase tracking-wide mb-3 text-coral">
+            <h2 className="flex items-center gap-2 font-display font-semibold text-2xl mb-3 text-coral">
               <AlertTriangle size={20} /> Full Reset
             </h2>
             <div className="bg-panel border border-coral/30 rounded-lg p-4">
@@ -535,7 +535,7 @@ export default function AdminDashboard() {
                       Yes, I understand — continue
                     </button>
                     <button onClick={() => setFullResetStep(0)}
-                      className="rounded-md px-3 py-2 text-sm font-medium border border-white/10 text-muted">
+                      className="rounded-md px-3 py-2 text-sm font-medium border border-line text-muted">
                       Cancel
                     </button>
                   </div>
@@ -559,7 +559,7 @@ export default function AdminDashboard() {
                       {fullResetBusy ? 'Wiping…' : 'Confirm Full Reset'}
                     </button>
                     <button onClick={() => { setFullResetStep(0); setFullResetInput(''); }}
-                      className="rounded-md px-3 py-2 text-sm font-medium border border-white/10 text-muted">
+                      className="rounded-md px-3 py-2 text-sm font-medium border border-line text-muted">
                       Cancel
                     </button>
                   </div>

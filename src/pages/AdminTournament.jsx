@@ -114,8 +114,8 @@ export default function AdminTournamentPage() {
     navigate('/admin');
   }
 
-  if (loading) return <div className="max-w-lg mx-auto px-4 py-10 text-center text-[#7A9BAD] text-sm">Loading…</div>;
-  if (!data?.tournament) return <div className="max-w-lg mx-auto px-4 py-10 text-center text-[#7A9BAD] text-sm">Not found.</div>;
+  if (loading) return <div className="max-w-lg mx-auto px-4 py-10 text-center text-muted text-sm">Loading…</div>;
+  if (!data?.tournament) return <div className="max-w-lg mx-auto px-4 py-10 text-center text-muted text-sm">Not found.</div>;
 
   const { tournament, players, matches } = data;
   const isDraft = tournament.status === 'draft';
@@ -152,14 +152,14 @@ export default function AdminTournamentPage() {
         <input type="number" min={0} value={s.a}
           onChange={e => setScores(p => ({ ...p, [matchId]: { ...s, a: e.target.value } }))}
           placeholder="0"
-          className="w-14 rounded-lg px-2 py-1.5 text-sm text-center font-mono bg-[#0D1B24] border border-[#1E3040] text-[#E8F0F5]" />
-        <span className="text-[#7A9BAD] text-sm font-bold">–</span>
+          className="w-14 rounded-lg px-2 py-1.5 text-sm text-center font-mono bg-app border border-line text-ink" />
+        <span className="text-muted text-sm font-bold">–</span>
         <input type="number" min={0} value={s.b}
           onChange={e => setScores(p => ({ ...p, [matchId]: { ...s, b: e.target.value } }))}
           placeholder="0"
-          className="w-14 rounded-lg px-2 py-1.5 text-sm text-center font-mono bg-[#0D1B24] border border-[#1E3040] text-[#E8F0F5]" />
+          className="w-14 rounded-lg px-2 py-1.5 text-sm text-center font-mono bg-app border border-line text-ink" />
         <button onClick={() => enterResult(matchId)} disabled={busy}
-          className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium bg-teal-600 text-white disabled:opacity-60">
+          className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium bg-brand text-onBrand disabled:opacity-60">
           <Check size={12} /> Save
         </button>
       </div>
@@ -167,12 +167,12 @@ export default function AdminTournamentPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto min-h-screen bg-[#0D1B24] text-[#E8F0F5] pb-10">
-      <div className="sticky top-0 z-40 bg-[#111E28] border-b border-[#1E3040] px-4 py-3 flex items-center gap-3">
-        <Link to="/admin" className="text-[#7A9BAD] hover:text-[#E8F0F5]"><ArrowLeft size={20} /></Link>
+    <div className="max-w-lg mx-auto min-h-screen bg-app text-ink pb-10">
+      <div className="sticky top-0 z-40 bg-nav border-b border-line px-4 py-3 flex items-center gap-3">
+        <Link to="/admin" className="text-muted hover:text-ink"><ArrowLeft size={20} /></Link>
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-lg truncate">{tournament.name}</h1>
-          <p className="text-xs text-[#7A9BAD] capitalize">{tournament.format.replace('_', ' ')} · {tournament.status}</p>
+          <p className="text-xs text-muted capitalize">{tournament.format.replace('_', ' ')} · {tournament.status}</p>
         </div>
         <button onClick={deleteTournament} className="text-red-400 hover:text-red-300">
           <Trash2 size={18} />
@@ -188,11 +188,11 @@ export default function AdminTournamentPage() {
 
         {/* Champion */}
         {champion && (
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg,#1B4D5C,#0F2A34)' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'rgb(var(--pitch))' }}>
             <div className="px-5 py-4 flex items-center gap-4">
               <div className="text-4xl">🏆</div>
               <div>
-                <p className="text-white/60 text-xs uppercase tracking-wide">Champion</p>
+                <p className="text-white/60 text-xs">Champion</p>
                 <p className="font-bold text-xl text-white">{champion.name}</p>
               </div>
             </div>
@@ -202,34 +202,34 @@ export default function AdminTournamentPage() {
         {/* Draft: player selection */}
         {isDraft && (
           <section>
-            <h2 className="font-bold text-base uppercase tracking-wide mb-3 flex items-center gap-2">
+            <h2 className="font-bold text-base mb-3 flex items-center gap-2">
               <Users size={16} /> Select Participants
             </h2>
-            <div className="bg-[#162330] border border-[#1E3040] rounded-2xl overflow-hidden mb-3">
+            <div className="bg-card border border-line rounded-2xl overflow-hidden mb-3">
               {allPlayers.map((p, i) => {
                 const selected = selectedPlayers.includes(p.id);
                 return (
                   <button key={p.id} onClick={() => setSelectedPlayers(prev =>
                     selected ? prev.filter(x => x !== p.id) : [...prev, p.id]
                   )}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${i === allPlayers.length - 1 ? '' : 'border-b border-[#1E3040]'} ${selected ? 'bg-teal-600/10' : 'hover:bg-[#1E3040]'}`}>
-                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${selected ? 'bg-teal-600 border-teal-600' : 'border-[#4A6273]'}`}>
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${i === allPlayers.length - 1 ? '' : 'border-b border-line'} ${selected ? 'bg-teal-600/10' : 'hover:bg-line'}`}>
+                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${selected ? 'bg-teal-600 border-teal-600' : 'border-muted'}`}>
                       {selected && <Check size={12} className="text-white" />}
                     </div>
                     <span className="font-medium">{p.name}</span>
-                    <span className="ml-auto text-[#7A9BAD] text-xs font-mono">{p.elo} ELO</span>
+                    <span className="ml-auto text-muted text-xs font-mono">{p.elo} ELO</span>
                   </button>
                 );
               })}
             </div>
             <div className="flex gap-2">
               <button onClick={savePlayers} disabled={busy}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium bg-[#162330] border border-[#1E3040] text-[#E8F0F5] disabled:opacity-60">
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium bg-card border border-line text-ink disabled:opacity-60">
                 {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 Save ({selectedPlayers.length} players)
               </button>
               <button onClick={startTournament} disabled={busy || selectedPlayers.length < 2}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-teal-600 text-white disabled:opacity-60">
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-brand text-onBrand disabled:opacity-60">
                 <Play size={14} /> Start Tournament
               </button>
             </div>
@@ -239,18 +239,18 @@ export default function AdminTournamentPage() {
         {/* Results reported by players */}
         {isActive && waitingReports.length > 0 && (
           <section>
-            <h2 className="font-bold text-base uppercase tracking-wide mb-2">Reported results ({waitingReports.length})</h2>
+            <h2 className="font-bold text-base mb-2">Reported results ({waitingReports.length})</h2>
             <div className="space-y-2">
               {waitingReports.map(r => {
                 const m = matchById[r.match_id];
                 return (
-                  <div key={r.id} className="bg-[#162330] border border-teal-500/40 rounded-xl px-4 py-3">
+                  <div key={r.id} className="bg-card border border-teal-500/40 rounded-xl px-4 py-3">
                     <div className="flex items-center justify-between text-sm font-medium">
                       <span>{playerName(m.player_a)}</span>
                       <span className="font-mono font-bold px-2">{r.score_a} – {r.score_b}</span>
                       <span>{playerName(m.player_b)}</span>
                     </div>
-                    <p className="text-xs text-[#7A9BAD] mt-1">
+                    <p className="text-xs text-muted mt-1">
                       {roundLabel(m.round)} · reported by {r.submitted_by}
                       {r.screenshot_url && (
                         <> · <a href={r.screenshot_url} target="_blank" rel="noreferrer" className="underline text-teal-400">screenshot</a></>
@@ -258,7 +258,7 @@ export default function AdminTournamentPage() {
                     </p>
                     <div className="flex gap-2 mt-2">
                       <button onClick={() => approveReport(r.id)} disabled={busy}
-                        className="flex-1 flex items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium bg-teal-600 text-white disabled:opacity-60">
+                        className="flex-1 flex items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium bg-brand text-onBrand disabled:opacity-60">
                         <Check size={12} /> Approve
                       </button>
                       <button onClick={() => rejectReport(r.id)} disabled={busy}
@@ -279,13 +279,13 @@ export default function AdminTournamentPage() {
             {/* Group matches */}
             {Object.entries(groupByLabel).sort().map(([groupLabel, gMatches]) => (
               <section key={groupLabel}>
-                <h2 className="font-bold text-base uppercase tracking-wide mb-2">{groupLabel} — Pending</h2>
+                <h2 className="font-bold text-base mb-2">{groupLabel} — Pending</h2>
                 <div className="space-y-2">
                   {gMatches.map(m => (
-                    <div key={m.id} className="bg-[#162330] border border-amber-400/20 rounded-xl px-4 py-3">
+                    <div key={m.id} className="bg-card border border-amber-400/20 rounded-xl px-4 py-3">
                       <div className="flex items-center justify-between text-sm font-medium">
                         <span>{playerName(m.player_a)}</span>
-                        <span className="text-[#7A9BAD] text-xs px-2">vs</span>
+                        <span className="text-muted text-xs px-2">vs</span>
                         <span>{playerName(m.player_b)}</span>
                       </div>
                       {ScoreInput({ matchId: m.id, match: m })}
@@ -298,15 +298,15 @@ export default function AdminTournamentPage() {
             {/* Knockout matches */}
             {Object.keys(knockoutByRound).sort((a, b) => roundSize(b) - roundSize(a)).map(round => (
               <section key={round}>
-                <h2 className="font-bold text-base uppercase tracking-wide mb-2">
+                <h2 className="font-bold text-base mb-2">
                   {roundLabel(round)} — Pending
                 </h2>
                 <div className="space-y-2">
                   {knockoutByRound[round].map(m => (
-                    <div key={m.id} className="bg-[#162330] border border-amber-400/20 rounded-xl px-4 py-3">
+                    <div key={m.id} className="bg-card border border-amber-400/20 rounded-xl px-4 py-3">
                       <div className="flex items-center justify-between text-sm font-medium">
                         <span>{playerName(m.player_a)}</span>
-                        <span className="text-[#7A9BAD] text-xs px-2">vs</span>
+                        <span className="text-muted text-xs px-2">vs</span>
                         <span>{playerName(m.player_b)}</span>
                       </div>
                       {ScoreInput({ matchId: m.id, match: m })}
@@ -317,8 +317,8 @@ export default function AdminTournamentPage() {
             ))}
 
             {pendingMatches.length === 0 && (
-              <div className="bg-[#162330] border border-[#1E3040] rounded-2xl p-6 text-center">
-                <p className="text-[#7A9BAD] text-sm">All matches played! Tournament will complete automatically.</p>
+              <div className="bg-card border border-line rounded-2xl p-6 text-center">
+                <p className="text-muted text-sm">All matches played! Tournament will complete automatically.</p>
               </div>
             )}
           </>
@@ -327,12 +327,12 @@ export default function AdminTournamentPage() {
         {/* Played matches log */}
         {playedMatches.length > 0 && (
           <section>
-            <h2 className="font-bold text-base uppercase tracking-wide mb-2">Results</h2>
-            <div className="bg-[#162330] border border-[#1E3040] rounded-2xl overflow-hidden">
+            <h2 className="font-bold text-base mb-2">Results</h2>
+            <div className="bg-card border border-line rounded-2xl overflow-hidden">
               {playedMatches.map((m, i) => (
-                <div key={m.id} className={`flex items-center gap-3 px-4 py-3 text-sm ${i === playedMatches.length - 1 ? '' : 'border-b border-[#1E3040]'}`}>
+                <div key={m.id} className={`flex items-center gap-3 px-4 py-3 text-sm ${i === playedMatches.length - 1 ? '' : 'border-b border-line'}`}>
                   <span className={`flex-1 ${m.winner_id === m.player_a ? 'font-bold text-green-400' : ''}`}>{playerName(m.player_a)}</span>
-                  <span className="font-mono text-xs text-[#7A9BAD]">{m.score_a} – {m.score_b}</span>
+                  <span className="font-mono text-xs text-muted">{m.score_a} – {m.score_b}</span>
                   <span className={`flex-1 text-right ${m.winner_id === m.player_b ? 'font-bold text-green-400' : ''}`}>{playerName(m.player_b)}</span>
                 </div>
               ))}
@@ -342,7 +342,7 @@ export default function AdminTournamentPage() {
 
         {/* Public view link */}
         <Link to={`/tournaments/${id}`}
-          className="flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium border border-[#1E3040] text-[#7A9BAD] hover:text-[#E8F0F5]">
+          className="flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium border border-line text-muted hover:text-ink">
           <Trophy size={16} /> View Public Tournament Page <ChevronRight size={14} />
         </Link>
       </div>

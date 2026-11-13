@@ -5,7 +5,9 @@ import {
   Trophy, Swords, Medal, History, Repeat, Users, Image as ImageIcon,
   Loader2, BarChart3, ShieldCheck, Home as HomeIcon, ListOrdered,
   ClipboardCheck, User, CheckCircle2, TrendingUp, Sun, Moon,
+  ChevronRight, LayoutGrid, Flame, ArrowLeft,
 } from 'lucide-react';
+import { useDarkMode } from '../lib/theme';
 import { uploadScreenshot } from '../lib/api';
 
 const DarkContext = createContext(false);
@@ -23,15 +25,15 @@ const TROPHY_TYPES = {
 function useTheme() {
   const dark = useDark();
   return {
-    bg:        dark ? 'bg-[#0D1B24]'     : 'bg-[#F0F4F8]',
-    card:      dark ? 'bg-[#162330]'     : 'bg-white',
-    border:    dark ? 'border-[#1E3040]' : 'border-[#DDE3EA]',
-    ink:       dark ? 'text-[#E8F0F5]'  : 'text-[#0F1E26]',
-    muted:     dark ? 'text-[#7A9BAD]'  : 'text-[#4A6273]',
-    navBg:     dark ? 'bg-[#111E28]'    : 'bg-white',
-    navBorder: dark ? 'border-[#1E3040]': 'border-[#DDE3EA]',
-    inputBg:   dark ? 'bg-[#162330] border-[#1E3040] text-[#E8F0F5]' : 'bg-white border-[#DDE3EA] text-[#0F1E26]',
-    hover:     dark ? 'hover:bg-[#1E3040]' : 'hover:bg-[#F0F4F8]',
+    bg: 'bg-app',
+    card: 'bg-card',
+    border: 'border-line',
+    ink: 'text-ink',
+    muted: 'text-muted',
+    navBg: 'bg-nav',
+    navBorder: 'border-line',
+    inputBg: 'bg-card border-line text-ink',
+    hover: 'hover:bg-app',
     dark,
   };
 }
@@ -54,92 +56,193 @@ function FormDots({ form }) {
 
 function SectionTitle({ children }) {
   const { ink } = useTheme();
-  return <h2 className={`font-display font-bold text-2xl uppercase tracking-wide ${ink} mb-3`}>{children}</h2>;
+  return <h2 className={`font-display font-bold text-3xl leading-none ${ink} mb-3`}>{children}</h2>;
 }
 
 /* ── HOME TAB ── */
-function HomeTab({ players, matches, pending, season, setTab }) {
-  const { card, border, ink, muted, dark } = useTheme();
-  const navCards = [
-    { id: 'leaderboard', label: 'Table',    Icon: Trophy,         desc: 'ELO standings' },
-    { id: 'submit',      label: 'Report',   Icon: Swords,         desc: 'Submit a result' },
-    { id: 'approval',    label: 'Approval', Icon: ClipboardCheck, desc: 'Pending results' },
-    { id: 'h2h',         label: 'H2H',      Icon: Repeat,         desc: 'Head-to-head' },
-    { id: 'history',     label: 'History',  Icon: History,        desc: 'Match log' },
-  ];
+function Avatar({ player, className = 'w-10 h-10' }) {
+  return player?.team_picture_url ? (
+    <img src={player.team_picture_url} alt="" className={`${className} rounded-xl object-cover flex-shrink-0 border border-line`} />
+  ) : (
+    <div className={`${className} rounded-xl bg-brand/10 flex-shrink-0 flex items-center justify-center border border-line`}>
+      <User size={16} className="text-brand" />
+    </div>
+  );
+}
+
+function daysAgo(iso) {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+const CUP_FORMATS = { knockout: 'Knockout', group_knockout: 'Groups then knockout', round_robin: 'Round robin' };
+
+function HomeHeading({ children, action, onAction }) {
+  return (
+    <div className="flex items-baseline justify-between mb-2">
+      <h2 className="font-display font-bold text-2xl leading-none text-ink">{children}</h2>
+      {action && (
+        <button onClick={onAction} className="text-sm font-semibold text-brand py-1">{action}</button>
+      )}
+    </div>
+  );
+}
+
+function HomeTab({ players, standings, matches, pending, season, stats, cups, formByPlayer, playerById, setTab, dark, toggleDark }) {
+  const top = standings.slice(0, 3);
+  const latest = matches.slice(0, 5);
+  const liveCups = cups.filter((c) => c.status === 'active');
+  const scorer = stats?.topScorers?.[0];
+  const streaks = standings
+    .map((p) => {
+      const form = formByPlayer[p.id] || [];
+      let n = 0;
+      for (let i = form.length - 1; i >= 0 && form[i] === 'W'; i--) n++;
+      return { p, n };
+    })
+    .filter((x) => x.n >= 2)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 3);
+
   return (
     <div className="flex flex-col">
-      <div className="relative w-full h-56 sm:h-72 overflow-hidden">
-        <video autoPlay muted loop playsInline
-          className="absolute inset-0 w-full h-full object-cover"
-          poster="https://images.unsplash.com/photo-1489944440615-453fc2b6a9a9?w=900&auto=format&fit=crop&q=80">
-          <source src="https://cdn.pixabay.com/video/2020/07/30/46234-446449469_large.mp4" type="video/mp4" />
-          <source src="https://cdn.pixabay.com/video/2019/09/16/27089-361562102_large.mp4" type="video/mp4" />
-          <img src="https://images.unsplash.com/photo-1489944440615-453fc2b6a9a9?w=900&auto=format&fit=crop&q=80"
-            alt="Stadium" className="w-full h-full object-cover" />
-        </video>
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black/80" />
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-          <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm border-2 border-white/60 flex items-center justify-center mb-2 shadow-lg">
-            <Trophy size={28} className="text-white" />
+      {/* Masthead: the centre circle of a pitch, seen from the halfway line */}
+      <header className="relative overflow-hidden bg-turf text-white px-5 pt-5 pb-8"
+        style={{ backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,.045) 0 44px, transparent 44px 88px)' }}>
+        <svg aria-hidden="true" className="absolute inset-x-0 bottom-0 w-full h-full" viewBox="0 0 400 200"
+          preserveAspectRatio="xMidYMax slice" fill="none" stroke="white" strokeOpacity=".22" strokeWidth="2">
+          <circle cx="200" cy="200" r="84" />
+          <line x1="0" y1="199" x2="400" y2="199" />
+          <circle cx="200" cy="200" r="4" fill="white" fillOpacity=".4" stroke="none" />
+        </svg>
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-white/75 text-sm font-medium">{season?.current?.name || 'Between seasons'}</p>
+            <h1 className="font-display font-extrabold text-[3.25rem] leading-[0.9] mt-1">Super League</h1>
           </div>
-          <p className="font-display font-bold text-xl uppercase tracking-widest text-white drop-shadow">Super League</p>
-          <p className="text-white/70 text-sm mt-1 italic drop-shadow">Where legends are made.</p>
-        </div>
-      </div>
-
-      <div className="px-4 pt-5 pb-28">
-        <div className="flex gap-3 mb-5">
-          <div className={`flex-1 ${card} rounded-2xl border ${border} shadow-sm px-4 py-3 text-center`}>
-            <div className="font-display font-bold text-3xl text-teal">{players.length}</div>
-            <div className={`${muted} text-xs mt-0.5`}>Players</div>
-          </div>
-          <div className={`flex-1 ${card} rounded-2xl border ${border} shadow-sm px-4 py-3 text-center`}>
-            <div className="font-display font-bold text-3xl text-teal">{matches.length}</div>
-            <div className={`${muted} text-xs mt-0.5`}>Matches</div>
-          </div>
-          {season?.current && (
-            <div className="flex-1 bg-teal rounded-2xl shadow-sm px-4 py-3 text-center">
-              <div className="font-display font-bold text-2xl text-white leading-tight">{season.current.name}</div>
-              <div className="text-white/70 text-xs mt-0.5">Season</div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-3 gap-3 mb-3">
-          {navCards.slice(0, 3).map(({ id, label, Icon, desc }) => (
-            <button key={id} onClick={() => setTab(id)}
-              className={`${card} border ${border} rounded-2xl shadow-sm hover:shadow-md active:scale-95 transition-all flex flex-col items-center justify-center gap-2 py-5 px-2`}>
-              <div className={`w-12 h-12 rounded-xl ${dark ? 'bg-teal/20' : 'bg-teal/10'} flex items-center justify-center`}>
-                <Icon size={22} className="text-teal" />
-              </div>
-              <span className={`font-semibold ${ink} text-sm`}>{label}</span>
-              <span className={`${muted} text-xs leading-tight text-center`}>{desc}</span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={toggleDark} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center">
+              {dark ? <Sun size={17} /> : <Moon size={17} />}
             </button>
-          ))}
+            <Link to="/admin" aria-label="Admin" className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center">
+              <ShieldCheck size={17} />
+            </Link>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {navCards.slice(3).map(({ id, label, Icon, desc }) => (
-            <button key={id} onClick={() => setTab(id)}
-              className={`${card} border ${border} rounded-2xl shadow-sm hover:shadow-md active:scale-95 transition-all flex flex-col items-center justify-center gap-2 py-5 px-2`}>
-              <div className={`w-12 h-12 rounded-xl ${dark ? 'bg-teal/20' : 'bg-teal/10'} flex items-center justify-center`}>
-                <Icon size={22} className="text-teal" />
-              </div>
-              <span className={`font-semibold ${ink} text-sm`}>{label}</span>
-              <span className={`${muted} text-xs leading-tight text-center`}>{desc}</span>
-            </button>
-          ))}
-        </div>
+        <p className="relative text-white/85 text-sm mt-4">
+          {players.length} {players.length === 1 ? 'player' : 'players'}, {matches.length} {matches.length === 1 ? 'match' : 'matches'} played
+        </p>
+      </header>
 
+      <div className="px-4 pt-6 pb-28 space-y-7">
         {pending.length > 0 && (
-          <div className={`mt-4 ${dark ? 'bg-amber-900/30 border-amber-700/40' : 'bg-amber-50 border-amber-200'} border rounded-2xl px-4 py-3 flex items-center gap-3`}>
-            <ClipboardCheck size={18} className="text-amber-500 flex-shrink-0" />
-            <p className="text-amber-500 text-sm">
-              <span className="font-semibold">{pending.length} result{pending.length > 1 ? 's' : ''}</span> awaiting admin approval
-            </p>
-          </div>
+          <button onClick={() => setTab('approval')}
+            className="w-full flex items-center gap-3 rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-left">
+            <ClipboardCheck size={18} className="text-accent flex-shrink-0" />
+            <span className="flex-1 text-sm text-ink">
+              <span className="font-semibold">{pending.length} {pending.length === 1 ? 'result' : 'results'}</span> waiting for approval
+            </span>
+            <ChevronRight size={16} className="text-muted" />
+          </button>
         )}
-        <p className={`text-center ${muted} text-xs mt-6`}>Powered by Super League Digital</p>
+
+        <section>
+          <HomeHeading action="Full table" onAction={() => setTab('leaderboard')}>Top of the table</HomeHeading>
+          {top.length === 0 ? (
+            <p className="bg-card border border-line rounded-2xl px-4 py-6 text-sm text-muted text-center">
+              No players yet. An admin adds them from the admin page.
+            </p>
+          ) : (
+            <ol className="bg-card border border-line rounded-2xl overflow-hidden">
+              {top.map((p, i) => (
+                <li key={p.id} className={i > 0 ? 'border-t border-line' : ''}>
+                  <Link to={`/players/${p.id}`} className={`relative flex items-center gap-3 px-4 ${i === 0 ? 'py-4' : 'py-3'}`}>
+                    {i === 0 && <span className="absolute left-0 inset-y-0 w-1.5 bg-accent" aria-hidden="true" />}
+                    <span className={`font-display font-extrabold w-8 text-center leading-none ${i === 0 ? 'text-5xl text-ink' : 'text-3xl text-muted'}`}>{i + 1}</span>
+                    <Avatar player={p} className={i === 0 ? 'w-14 h-14' : 'w-10 h-10'} />
+                    <div className="flex-1 min-w-0">
+                      <div className={`font-semibold text-ink truncate ${i === 0 ? 'text-lg' : ''}`}>{p.name}</div>
+                      <div className="text-muted text-xs mt-0.5">{p.wins}W {p.draws}D {p.losses}L</div>
+                    </div>
+                    <div className={`font-display font-bold text-ink leading-none ${i === 0 ? 'text-4xl' : 'text-2xl'}`}>{p.elo}</div>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+
+        {liveCups.length > 0 && (
+          <section>
+            <HomeHeading>Cups in progress</HomeHeading>
+            <div className="space-y-2">
+              {liveCups.map((c) => (
+                <Link key={c.id} to={`/tournaments/${c.id}`}
+                  className="flex items-center gap-3 rounded-2xl bg-brand text-onBrand px-4 py-3.5">
+                  <Medal size={22} className="flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold truncate">{c.name}</div>
+                    <div className="text-sm opacity-80">{CUP_FORMATS[c.format] || c.format}. Tap to see fixtures and report a result.</div>
+                  </div>
+                  <ChevronRight size={18} className="flex-shrink-0" />
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section>
+          <HomeHeading action={matches.length > 0 ? 'All results' : null} onAction={() => setTab('history')}>Latest results</HomeHeading>
+          {latest.length === 0 ? (
+            <div className="bg-card border border-line rounded-2xl px-4 py-6 text-center">
+              <p className="text-sm text-muted">No matches this season yet.</p>
+              <button onClick={() => setTab('submit')} className="mt-3 rounded-xl bg-brand text-onBrand text-sm font-semibold px-4 py-2">Report a result</button>
+            </div>
+          ) : (
+            <ul className="bg-card border border-line rounded-2xl overflow-hidden">
+              {latest.map((m, i) => {
+                const aWon = m.score_a > m.score_b;
+                const bWon = m.score_b > m.score_a;
+                return (
+                  <li key={m.id} className={`px-4 py-3 ${i > 0 ? 'border-t border-line' : ''}`}>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className={`flex-1 min-w-0 truncate text-right ${aWon ? 'font-semibold text-ink' : 'text-muted'}`}>{playerById[m.player_a]?.name || 'Former player'}</span>
+                      <span className="font-display font-bold text-xl text-ink leading-none px-2 whitespace-nowrap">{m.score_a} : {m.score_b}</span>
+                      <span className={`flex-1 min-w-0 truncate ${bWon ? 'font-semibold text-ink' : 'text-muted'}`}>{playerById[m.player_b]?.name || 'Former player'}</span>
+                    </div>
+                    <p className="text-center text-xs text-muted mt-1">{daysAgo(m.approved_at)}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        {(streaks.length > 0 || scorer) && (
+          <section>
+            <HomeHeading action="More stats" onAction={() => setTab('stats')}>In form</HomeHeading>
+            <ul className="bg-card border border-line rounded-2xl overflow-hidden">
+              {streaks.map(({ p, n }, i) => (
+                <li key={p.id} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-line' : ''}`}>
+                  <Flame size={18} className="text-accent flex-shrink-0" />
+                  <span className="flex-1 min-w-0 truncate font-semibold text-ink">{p.name}</span>
+                  <span className="text-sm text-muted">{n} wins in a row</span>
+                </li>
+              ))}
+              {scorer && (
+                <li className={`flex items-center gap-3 px-4 py-3 ${streaks.length > 0 ? 'border-t border-line' : ''}`}>
+                  <TrendingUp size={18} className="text-brand flex-shrink-0" />
+                  <span className="flex-1 min-w-0 truncate font-semibold text-ink">{scorer.name}</span>
+                  <span className="text-sm text-muted">{scorer.goals} goals this season</span>
+                </li>
+              )}
+            </ul>
+          </section>
+        )}
       </div>
     </div>
   );
@@ -150,10 +253,9 @@ function LeaderboardTab({ standings, formByPlayer }) {
   const { card, border, ink, muted, hover } = useTheme();
   return (
     <div className="px-4 py-5 pb-28">
-      <SectionTitle>Standings</SectionTitle>
       {standings.length === 0 ? (
         <div className={`${card} border ${border} rounded-2xl p-8 text-center shadow-sm`}>
-          <Users size={32} className="text-[#5E8F9E] mx-auto mb-3" />
+          <Users size={32} className="text-muted mx-auto mb-3" />
           <p className={`${muted} text-sm`}>No players yet.</p>
         </div>
       ) : (
@@ -237,7 +339,6 @@ function SubmitTab({ players }) {
 
   return (
     <div className="px-4 py-5 pb-28">
-      <SectionTitle>Report Result</SectionTitle>
       {players.length < 2 ? (
         <div className={`${card} border ${border} rounded-2xl p-6 text-center shadow-sm`}>
           <p className={`${muted} text-sm`}>At least two players are needed.</p>
@@ -247,7 +348,7 @@ function SubmitTab({ players }) {
           <div className={`${card} border ${border} rounded-2xl shadow-sm p-4`}>
             <div className="grid grid-cols-[1fr_40px_1fr] gap-2 items-end">
               <div>
-                <label className={`block ${muted} text-xs uppercase tracking-wide mb-1.5`}>Home</label>
+                <label className={`block ${muted} text-xs mb-1.5`}>Home</label>
                 <select value={matchA} onChange={(e) => setMatchA(e.target.value)} className={sCls}>
                   <option value="">Player…</option>
                   {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -259,7 +360,7 @@ function SubmitTab({ players }) {
                 <span className={`font-display font-bold text-2xl ${muted}`}>vs</span>
               </div>
               <div>
-                <label className={`block ${muted} text-xs uppercase tracking-wide mb-1.5`}>Away</label>
+                <label className={`block ${muted} text-xs mb-1.5`}>Away</label>
                 <select value={matchB} onChange={(e) => setMatchB(e.target.value)} className={sCls}>
                   <option value="">Player…</option>
                   {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -272,11 +373,11 @@ function SubmitTab({ players }) {
 
           <div className={`${card} border ${border} rounded-2xl shadow-sm p-4 space-y-3`}>
             <div>
-              <label className={`block ${muted} text-xs uppercase tracking-wide mb-1.5`}>Reported by</label>
+              <label className={`block ${muted} text-xs mb-1.5`}>Reported by</label>
               <input value={submittedBy} onChange={(e) => setSubmittedBy(e.target.value)} placeholder="Your name" className={iCls} />
             </div>
             <div>
-              <label className={`block ${muted} text-xs uppercase tracking-wide mb-1.5`}>Screenshot (optional)</label>
+              <label className={`block ${muted} text-xs mb-1.5`}>Screenshot (optional)</label>
               <input type="file" accept="image/*" onChange={(e) => setScreenshotFile(e.target.files?.[0] || null)}
                 className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-teal/10 file:px-3 file:py-2 file:text-teal file:text-sm file:font-medium" />
               {screenshotFile && <p className={`${muted} text-xs mt-1 flex items-center gap-1`}><ImageIcon size={12} /> {screenshotFile.name}</p>}
@@ -291,7 +392,7 @@ function SubmitTab({ players }) {
             </div>
           )}
           <button onClick={submitMatch} disabled={busy}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold bg-teal text-white shadow-sm hover:bg-[#2A6478] active:scale-95 transition-all disabled:opacity-60">
+            className="w-full flex items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold bg-brand text-onBrand shadow-sm hover:bg-brand-strong active:scale-95 transition-all disabled:opacity-60">
             {uploading ? <><Loader2 size={16} className="animate-spin" /> Uploading…</> : busy ? <><Loader2 size={16} className="animate-spin" /> Submitting…</> : 'Submit Result for Approval'}
           </button>
         </div>
@@ -306,7 +407,6 @@ function ApprovalTab({ pending, playerById }) {
   function playerName(id) { return playerById[id]?.name || 'Unknown'; }
   return (
     <div className="px-4 py-5 pb-28">
-      <SectionTitle>Pending Approval</SectionTitle>
       {pending.length === 0 ? (
         <div className={`${card} border ${border} rounded-2xl p-8 text-center shadow-sm`}>
           <CheckCircle2 size={32} className="text-green-500 mx-auto mb-3" />
@@ -347,7 +447,7 @@ function StatsTab({ stats, season }) {
       <StatBlock title="This week" eloLeaders={stats.weekly.eloLeaders} winRateLeaders={stats.weekly.winRateLeaders} minGames={stats.weekly.minGames} />
       <StatBlock title="This month" eloLeaders={stats.monthly.eloLeaders} winRateLeaders={stats.monthly.winRateLeaders} minGames={stats.monthly.minGames} />
       <div>
-        <SectionTitle>Top Scorers {season?.current ? `— ${season.current.name}` : ''}</SectionTitle>
+        <SectionTitle>Top scorers{season?.current ? `, ${season.current.name}` : ''}</SectionTitle>
         {stats.topScorers.length === 0 ? (
           <div className={`${muted} text-sm`}>No goals recorded yet.</div>
         ) : (
@@ -379,7 +479,7 @@ function StatBlock({ title, eloLeaders, winRateLeaders, minGames }) {
       <SectionTitle>{title}</SectionTitle>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <p className={`${muted} text-xs uppercase tracking-wide mb-1.5 flex items-center gap-1`}><TrendingUp size={12} /> Most ELO gained</p>
+          <p className={`${muted} text-xs mb-1.5 flex items-center gap-1`}><TrendingUp size={12} /> Most ELO gained</p>
           {eloLeaders.length === 0 ? (
             <div className={`${card} border ${border} rounded-2xl p-3 ${muted} text-sm shadow-sm`}>No matches yet.</div>
           ) : (
@@ -394,7 +494,7 @@ function StatBlock({ title, eloLeaders, winRateLeaders, minGames }) {
           )}
         </div>
         <div>
-          <p className={`${muted} text-xs uppercase tracking-wide mb-1.5 flex items-center gap-1`}><Trophy size={12} /> Best win rate (min {minGames})</p>
+          <p className={`${muted} text-xs mb-1.5 flex items-center gap-1`}><Trophy size={12} /> Best win rate (min {minGames})</p>
           {winRateLeaders.length === 0 ? (
             <div className={`${card} border ${border} rounded-2xl p-3 ${muted} text-sm shadow-sm`}>Not enough matches.</div>
           ) : (
@@ -449,17 +549,16 @@ function H2hTab({ players }) {
 
   return (
     <div className="px-4 py-5 pb-28 space-y-4">
-      <SectionTitle>Head-to-Head</SectionTitle>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={`block ${muted} text-xs uppercase tracking-wide mb-1.5`}>Player 1</label>
+          <label className={`block ${muted} text-xs mb-1.5`}>Player 1</label>
           <select value={h2hA} onChange={(e) => setH2hA(e.target.value)} className={sCls}>
             <option value="">Select…</option>
             {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
         <div>
-          <label className={`block ${muted} text-xs uppercase tracking-wide mb-1.5`}>Player 2</label>
+          <label className={`block ${muted} text-xs mb-1.5`}>Player 2</label>
           <select value={h2hB} onChange={(e) => setH2hB(e.target.value)} className={sCls}>
             <option value="">Select…</option>
             {players.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -469,7 +568,7 @@ function H2hTab({ players }) {
 
       {(!h2hA || !h2hB || h2hA === h2hB) ? (
         <div className={`${card} border ${border} rounded-2xl p-8 text-center shadow-sm`}>
-          <Repeat size={28} className="text-[#5E8F9E] mx-auto mb-2" />
+          <Repeat size={28} className="text-muted mx-auto mb-2" />
           <p className={`${muted} text-sm`}>Pick two players to see their record.</p>
         </div>
       ) : loading ? (
@@ -490,7 +589,7 @@ function H2hTab({ players }) {
                 <div className={`${muted} text-xs`}>wins</div>
               </div>
               <div>
-                <div className={`${muted} text-xs uppercase tracking-wide`}>Draws</div>
+                <div className={`${muted} text-xs`}>Draws</div>
                 <div className="font-display font-bold text-4xl text-amber-500 mt-1">{summary.draws}</div>
                 <div className={`${muted} text-xs`}>{summary.total} played</div>
               </div>
@@ -524,10 +623,9 @@ function HistoryTab({ matches, playerById }) {
   function playerName(id) { return playerById[id]?.name || 'Unknown'; }
   return (
     <div className="px-4 py-5 pb-28">
-      <SectionTitle>Match History</SectionTitle>
       {matches.length === 0 ? (
         <div className={`${card} border ${border} rounded-2xl p-8 text-center shadow-sm`}>
-          <History size={32} className="text-[#5E8F9E] mx-auto mb-3" />
+          <History size={32} className="text-muted mx-auto mb-3" />
           <p className={`${muted} text-sm`}>No matches confirmed yet.</p>
         </div>
       ) : (
@@ -577,10 +675,10 @@ function HallOfFameTab({ players, trophies }) {
   return (
     <div className="px-4 py-5 pb-28">
       <div className="relative rounded-2xl overflow-hidden mb-5 h-28"
-        style={{ background: 'linear-gradient(135deg, #1B4D5C 0%, #0F2A34 100%)' }}>
+        style={{ background: 'rgb(var(--pitch))' }}>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
           <div className="text-3xl mb-1">🏆</div>
-          <h2 className="font-display font-bold text-2xl uppercase tracking-widest">Hall of Fame</h2>
+          <h2 className="font-display font-bold text-2xl">Hall of Fame</h2>
           <p className="text-white/60 text-xs mt-0.5">Legends of the Super League</p>
         </div>
       </div>
@@ -608,12 +706,12 @@ function HallOfFameTab({ players, trophies }) {
                         className="w-14 h-14 rounded-xl object-cover border-2 border-amber-300 flex-shrink-0" />
                     ) : (
                       <div className="w-14 h-14 rounded-xl flex-shrink-0 flex items-center justify-center border-2 border-amber-300"
-                        style={{ background: 'linear-gradient(135deg,#1B4D5C,#2A6478)' }}>
+                        style={{ background: 'rgb(var(--pitch))' }}>
                         <span className="text-white font-display font-bold text-xl">{player.name.charAt(0).toUpperCase()}</span>
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <h3 className={`font-display font-bold text-xl uppercase leading-tight ${ink} truncate`}>{player.name}</h3>
+                      <h3 className={`font-display font-bold text-xl leading-tight ${ink} truncate`}>{player.name}</h3>
                       <p className={`${muted} text-xs mt-0.5`}>{pts.length} trophy record{pts.length !== 1 ? 's' : ''}</p>
                     </div>
                     <span className="text-2xl flex-shrink-0">{'🏆'.repeat(Math.min(winCount, 3))}</span>
@@ -665,7 +763,7 @@ function TournamentsTab() {
   };
 
   const statusStyle = {
-    draft:     { bg: 'bg-[#7A9BAD]/10', text: 'text-[#7A9BAD]' },
+    draft:     { bg: 'bg-muted/10', text: 'text-muted' },
     active:    { bg: 'bg-amber-400/10', text: 'text-amber-400' },
     completed: { bg: 'bg-green-500/10', text: 'text-green-500' },
   };
@@ -680,7 +778,6 @@ function TournamentsTab() {
 
   return (
     <div className="px-4 py-5 pb-28">
-      <SectionTitle>Tournaments</SectionTitle>
       {tournaments.length === 0 ? (
         <div className={`${card} border ${border} rounded-2xl p-10 text-center shadow-sm`}>
           <div className="text-5xl mb-3">🏆</div>
@@ -721,27 +818,32 @@ function TournamentsTab() {
   );
 }
 /* ── BOTTOM NAV ── */
+const MORE_TABS = ['more', 'stats', 'h2h', 'history', 'halloffame', 'approval'];
+
 function BottomNav({ tab, setTab }) {
-  const { navBg, navBorder } = useTheme();
- const items = [
-  { id: 'home',        label: 'Home',        Icon: HomeIcon },
-  { id: 'leaderboard', label: 'Standings',   Icon: ListOrdered },
-  { id: 'submit',      label: 'Report',      Icon: Swords },
-  { id: 'stats',       label: 'Stats',       Icon: BarChart3 },
-  { id: 'halloffame',  label: 'Hall of Fame', Icon: Trophy },
-  { id: 'tournaments', label: 'Cup',         Icon: Medal },
-];
+  const items = [
+    { id: 'home',        label: 'Home',   Icon: HomeIcon },
+    { id: 'leaderboard', label: 'Table',  Icon: ListOrdered },
+    { id: 'submit',      label: 'Report', Icon: Swords, primary: true },
+    { id: 'tournaments', label: 'Cups',   Icon: Medal },
+    { id: 'more',        label: 'More',   Icon: LayoutGrid },
+  ];
   return (
-    <nav className={`fixed bottom-0 left-0 right-0 z-50 ${navBg} border-t ${navBorder}`}>
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-nav border-t border-line" aria-label="Main">
       <div className="max-w-lg mx-auto flex items-stretch">
-        {items.map(({ id, label, Icon }) => {
-          const active = tab === id;
+        {items.map(({ id, label, Icon, primary }) => {
+          const active = id === 'more' ? MORE_TABS.includes(tab) : tab === id;
           return (
-            <button key={id} onClick={() => setTab(id)}
-              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors relative ${active ? 'text-teal' : 'text-[#7A9BAD]'}`}>
-              {active && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-teal rounded-b-full" />}
-              <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
-              <span className="text-[9px] font-medium leading-tight text-center px-1">{label}</span>
+            <button key={id} onClick={() => setTab(id)} aria-current={active ? 'page' : undefined}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 pt-2 pb-2.5 ${active ? 'text-brand' : 'text-muted'}`}>
+              {primary ? (
+                <span className="-mt-5 w-12 h-12 rounded-full bg-brand text-onBrand flex items-center justify-center border-4 border-nav">
+                  <Icon size={20} />
+                </span>
+              ) : (
+                <Icon size={21} strokeWidth={active ? 2.4 : 1.8} />
+              )}
+              <span className={`text-[11px] leading-none ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
             </button>
           );
         })}
@@ -750,27 +852,60 @@ function BottomNav({ tab, setTab }) {
   );
 }
 
+/* ── MORE TAB ── */
+function MoreTab({ pending, setTab }) {
+  const rows = [
+    { id: 'stats',      label: 'Stats',               desc: 'Who is climbing and scoring',      Icon: BarChart3 },
+    { id: 'h2h',        label: 'Head-to-head',        desc: 'Compare any two players',          Icon: Repeat },
+    { id: 'history',    label: 'Match history',       desc: 'Every approved result',            Icon: History },
+    { id: 'halloffame', label: 'Hall of fame',        desc: 'Trophies and past seasons',        Icon: Trophy },
+    { id: 'approval',   label: 'Waiting for approval', desc: pending.length ? `${pending.length} reported ${pending.length === 1 ? 'result' : 'results'}` : 'Nothing waiting', Icon: ClipboardCheck },
+  ];
+  return (
+    <div className="px-4 py-5 pb-28">
+      <div className="bg-card border border-line rounded-2xl overflow-hidden">
+        {rows.map(({ id, label, desc, Icon }, i) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-app ${i > 0 ? 'border-t border-line' : ''}`}>
+            <Icon size={20} className="text-brand flex-shrink-0" />
+            <span className="flex-1 min-w-0">
+              <span className="block font-semibold text-ink">{label}</span>
+              <span className="block text-sm text-muted">{desc}</span>
+            </span>
+            <ChevronRight size={16} className="text-muted flex-shrink-0" />
+          </button>
+        ))}
+      </div>
+      <Link to="/admin" className="mt-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3.5 text-ink">
+        <ShieldCheck size={20} className="text-muted flex-shrink-0" />
+        <span className="flex-1 font-semibold">Admin</span>
+        <ChevronRight size={16} className="text-muted" />
+      </Link>
+    </div>
+  );
+}
+
 /* ── TOP HEADER ── */
-function TopHeader({ tab, dark, toggleDark }) {
-  const { navBg, navBorder, ink, muted } = useTheme();
+function TopHeader({ tab, setTab, dark, toggleDark }) {
   const titles = {
-    home: null, leaderboard: 'Standings', submit: 'Report Result',
-    approval: 'Pending Approval', stats: 'Statistics',
-    h2h: 'Head-to-Head', history: 'Match History', halloffame: 'Hall of Fame',
+    leaderboard: 'Table', submit: 'Report a result', tournaments: 'Cups', more: 'More',
+    approval: 'Waiting for approval', stats: 'Stats',
+    h2h: 'Head-to-head', history: 'Match history', halloffame: 'Hall of fame',
   };
   if (tab === 'home') return null;
+  const nested = MORE_TABS.includes(tab) && tab !== 'more';
   return (
-    <header className={`sticky top-0 z-40 ${navBg} border-b ${navBorder} px-4 py-3 flex items-center justify-between`}>
-      <h1 className={`font-display font-bold text-2xl uppercase tracking-wide ${ink}`}>{titles[tab]}</h1>
-      <div className="flex items-center gap-3">
-        <button onClick={toggleDark}
-          className={`w-9 h-9 rounded-xl flex items-center justify-center ${dark ? 'bg-[#1E3040]' : 'bg-[#F0F4F8]'} transition-all`}>
-          {dark ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} className="text-[#4A6273]" />}
+    <header className="sticky top-0 z-40 bg-nav border-b border-line px-4 h-14 flex items-center gap-2">
+      {nested && (
+        <button onClick={() => setTab('more')} aria-label="Back to More" className="-ml-2 w-10 h-10 flex items-center justify-center text-muted">
+          <ArrowLeft size={20} />
         </button>
-        <Link to="/admin" className={`flex items-center gap-1 text-xs ${muted} hover:text-teal transition-colors`}>
-          <ShieldCheck size={15} /> Admin
-        </Link>
-      </div>
+      )}
+      <h1 className="flex-1 font-display font-bold text-3xl leading-none text-ink">{titles[tab]}</h1>
+      <button onClick={toggleDark} aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+        className="w-10 h-10 rounded-full flex items-center justify-center text-muted hover:bg-app">
+        {dark ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
     </header>
   );
 }
@@ -785,19 +920,16 @@ export default function Home() {
   const [trophies, setTrophies] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [tab, setTab]           = useState('home');
-  const [dark, setDark]         = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('sl-dark') === 'true' ||
-        window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return false;
-  });
-
-  function toggleDark() {
-    setDark((d) => { localStorage.setItem('sl-dark', String(!d)); return !d; });
-  }
+  const [cups, setCups]         = useState([]);
+  const [dark, toggleDark]      = useDarkMode();
 
   useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    fetch('/api/tournaments', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => setCups(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
 
   // *** THE FIXED loadAll — all inside Home, all json() calls in parallel ***
   async function loadAll() {
@@ -838,7 +970,7 @@ export default function Home() {
   }, [matches, players]);
 
   const standings = [...players].sort((a, b) => b.elo - a.elo);
-  const bgClass = dark ? 'bg-[#0D1B24]' : 'bg-[#F0F4F8]';
+  const bgClass = dark ? 'bg-app' : 'bg-app';
 
   if (loading) {
     return (
@@ -848,7 +980,7 @@ export default function Home() {
             <div className="w-12 h-12 rounded-full bg-teal/10 flex items-center justify-center">
               <Trophy size={22} className="text-teal" />
             </div>
-            <p className="text-[#7A9BAD] text-sm">Loading the league…</p>
+            <p className="text-muted text-sm">Loading the league…</p>
           </div>
         </div>
       </DarkContext.Provider>
@@ -858,16 +990,10 @@ export default function Home() {
   return (
     <DarkContext.Provider value={dark}>
       <div className={`max-w-lg mx-auto min-h-screen ${bgClass} relative`}>
-        {tab === 'home' && (
-          <button onClick={toggleDark}
-            className="absolute top-3 right-3 z-50 w-9 h-9 rounded-xl bg-black/30 backdrop-blur-sm flex items-center justify-center">
-            {dark ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} className="text-white" />}
-          </button>
-        )}
+        <TopHeader tab={tab} setTab={setTab} dark={dark} toggleDark={toggleDark} />
 
-        <TopHeader tab={tab} dark={dark} toggleDark={toggleDark} />
-
-        {tab === 'home'        && <HomeTab players={players} matches={matches} pending={pending} season={season} setTab={setTab} />}
+        {tab === 'home'        && <HomeTab players={players} standings={standings} matches={matches} pending={pending} season={season} stats={stats} cups={cups}
+          formByPlayer={formByPlayer} playerById={playerById} setTab={setTab} dark={dark} toggleDark={toggleDark} />}
         {tab === 'leaderboard' && <LeaderboardTab standings={standings} formByPlayer={formByPlayer} />}
         {tab === 'submit'      && <SubmitTab players={players} />}
         {tab === 'approval'    && <ApprovalTab pending={pending} playerById={playerById} />}
@@ -876,6 +1002,7 @@ export default function Home() {
         {tab === 'history'     && <HistoryTab matches={matches} playerById={playerById} />}
         {tab === 'halloffame'  && <HallOfFameTab players={players} trophies={trophies} />}
         {tab === 'tournaments' && <TournamentsTab />}
+        {tab === 'more'        && <MoreTab pending={pending} setTab={setTab} />}
         <BottomNav tab={tab} setTab={setTab} />
       </div>
     </DarkContext.Provider>

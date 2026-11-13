@@ -40,7 +40,7 @@ export default function TournamentPage() {
   if (loading) {
     return (
       <div className="max-w-lg mx-auto px-4 py-10 text-center">
-        <p className="text-[#7A9BAD] text-sm">Loading tournament…</p>
+        <p className="text-muted text-sm">Loading tournament…</p>
       </div>
     );
   }
@@ -48,10 +48,10 @@ export default function TournamentPage() {
   if (!data || !data.tournament) {
     return (
       <div className="max-w-lg mx-auto px-4 py-10">
-        <Link to="/" className="flex items-center gap-2 text-[#7A9BAD] text-sm mb-4 hover:text-white">
+        <Link to="/" className="flex items-center gap-2 text-muted text-sm mb-4 hover:text-white">
           <ArrowLeft size={16} /> Back
         </Link>
-        <p className="text-[#7A9BAD] text-sm">Tournament not found.</p>
+        <p className="text-muted text-sm">Tournament not found.</p>
       </div>
     );
   }
@@ -74,7 +74,7 @@ export default function TournamentPage() {
     onReported: load,
   });
   const formatLabel = { knockout: 'Knockout', group_knockout: 'Group + Knockout', round_robin: 'Round Robin' };
-  const statusColor = { draft: 'text-[#7A9BAD]', active: 'text-amber-400', completed: 'text-green-500' };
+  const statusColor = { draft: 'text-muted', active: 'text-amber-400', completed: 'text-green-500' };
 
   const champion = tournament.champion_id ? playerById[tournament.champion_id] : null;
 
@@ -124,13 +124,13 @@ export default function TournamentPage() {
     : [];
 
   return (
-    <div className="max-w-lg mx-auto min-h-screen bg-[#0D1B24] text-[#E8F0F5] pb-10">
+    <div className="max-w-lg mx-auto min-h-screen bg-app text-ink pb-10">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-[#111E28] border-b border-[#1E3040] px-4 py-3 flex items-center gap-3">
-        <Link to="/" className="text-[#7A9BAD] hover:text-[#E8F0F5]"><ArrowLeft size={20} /></Link>
+      <div className="sticky top-0 z-40 bg-nav border-b border-line px-4 py-3 flex items-center gap-3">
+        <Link to="/" className="text-muted hover:text-ink"><ArrowLeft size={20} /></Link>
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-lg truncate">{tournament.name}</h1>
-          <p className="text-xs text-[#7A9BAD]">{formatLabel[tournament.format]} · <span className={statusColor[tournament.status] || ''}>{tournament.status}</span></p>
+          <p className="text-xs text-muted">{formatLabel[tournament.format]} · <span className={statusColor[tournament.status] || ''}>{tournament.status}</span></p>
         </div>
         {tournament.affects_elo && (
           <span className="text-xs bg-amber-400/20 text-amber-400 px-2 py-0.5 rounded-full">ELO</span>
@@ -140,11 +140,11 @@ export default function TournamentPage() {
       <div className="px-4 py-5 space-y-6">
         {/* Champion banner */}
         {champion && (
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg,#1B4D5C,#0F2A34)' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'rgb(var(--pitch))' }}>
             <div className="px-5 py-4 flex items-center gap-4">
               <div className="text-4xl">🏆</div>
               <div>
-                <p className="text-white/60 text-xs uppercase tracking-wide">Champion</p>
+                <p className="text-white/60 text-xs">Champion</p>
                 <p className="font-bold text-xl text-white">{champion.name}</p>
               </div>
             </div>
@@ -154,13 +154,13 @@ export default function TournamentPage() {
         {/* Round Robin Standings */}
         {tournament.format === 'round_robin' && (
           <section>
-            <h2 className="font-bold text-lg uppercase tracking-wide mb-2">Standings</h2>
-            <div className="bg-[#162330] border border-[#1E3040] rounded-2xl overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] text-xs text-[#7A9BAD] uppercase tracking-wide px-4 py-2 border-b border-[#1E3040]">
+            <h2 className="font-bold text-lg mb-2">Standings</h2>
+            <div className="bg-card border border-line rounded-2xl overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] text-xs text-muted px-4 py-2 border-b border-line">
                 <span>Player</span><span className="w-7 text-center">W</span><span className="w-7 text-center">D</span><span className="w-7 text-center">L</span><span className="w-8 text-center">Pts</span>
               </div>
               {rrStandings.map((tp, i) => (
-                <div key={tp.player_id} className={`grid grid-cols-[1fr_auto_auto_auto_auto] items-center px-4 py-2.5 text-sm ${i === rrStandings.length - 1 ? '' : 'border-b border-[#1E3040]'}`}>
+                <div key={tp.player_id} className={`grid grid-cols-[1fr_auto_auto_auto_auto] items-center px-4 py-2.5 text-sm ${i === rrStandings.length - 1 ? '' : 'border-b border-line'}`}>
                   <span className="font-medium">{i + 1}. {tp.name}</span>
                   <span className="w-7 text-center text-green-400">{tp.group_wins}</span>
                   <span className="w-7 text-center text-amber-400">{tp.group_draws}</span>
@@ -174,7 +174,7 @@ export default function TournamentPage() {
 
         {tournament.format === 'round_robin' && groupMatches.length > 0 && (
           <section>
-            <h2 className="font-bold text-lg uppercase tracking-wide mb-2">Fixtures</h2>
+            <h2 className="font-bold text-lg mb-2">Fixtures</h2>
             <div className="space-y-2">
               {groupMatches.map(m => <MatchCard key={m.id} {...cardProps(m)} />)}
             </div>
@@ -186,13 +186,13 @@ export default function TournamentPage() {
           <section className="space-y-4">
             {Object.entries(groupStandings).sort().map(([groupLabel, gPlayers]) => (
               <div key={groupLabel}>
-                <h2 className="font-bold text-base uppercase tracking-wide mb-2">{groupLabel}</h2>
-                <div className="bg-[#162330] border border-[#1E3040] rounded-2xl overflow-hidden mb-2">
-                  <div className="grid grid-cols-[1fr_auto_auto_auto_auto] text-xs text-[#7A9BAD] uppercase tracking-wide px-4 py-2 border-b border-[#1E3040]">
+                <h2 className="font-bold text-base mb-2">{groupLabel}</h2>
+                <div className="bg-card border border-line rounded-2xl overflow-hidden mb-2">
+                  <div className="grid grid-cols-[1fr_auto_auto_auto_auto] text-xs text-muted px-4 py-2 border-b border-line">
                     <span>Player</span><span className="w-7 text-center">W</span><span className="w-7 text-center">D</span><span className="w-7 text-center">L</span><span className="w-8 text-center">Pts</span>
                   </div>
                   {gPlayers.map((tp, i) => (
-                    <div key={tp.player_id} className={`grid grid-cols-[1fr_auto_auto_auto_auto] items-center px-4 py-2.5 text-sm ${i === gPlayers.length - 1 ? '' : 'border-b border-[#1E3040]'}`}>
+                    <div key={tp.player_id} className={`grid grid-cols-[1fr_auto_auto_auto_auto] items-center px-4 py-2.5 text-sm ${i === gPlayers.length - 1 ? '' : 'border-b border-line'}`}>
                       <span className="font-medium">{i + 1}. {tp.name}</span>
                       <span className="w-7 text-center text-green-400">{tp.group_wins}</span>
                       <span className="w-7 text-center text-amber-400">{tp.group_draws}</span>
@@ -215,10 +215,10 @@ export default function TournamentPage() {
         {/* Knockout bracket */}
         {knockoutMatches.length > 0 && (
           <section className="space-y-4">
-            <h2 className="font-bold text-lg uppercase tracking-wide">Knockout Stage</h2>
+            <h2 className="font-bold text-lg">Knockout Stage</h2>
             {sortedKnockoutRounds.map(round => (
               <div key={round}>
-                <h3 className="text-sm font-semibold text-[#7A9BAD] uppercase tracking-wide mb-2">
+                <h3 className="text-sm font-semibold text-muted mb-2">
                   {roundLabel(round)}
                 </h3>
                 <div className="space-y-2">
@@ -233,14 +233,14 @@ export default function TournamentPage() {
 
         {/* Participants */}
         <section>
-          <h2 className="font-bold text-lg uppercase tracking-wide mb-2">Participants ({players.length})</h2>
-          <div className="bg-[#162330] border border-[#1E3040] rounded-2xl overflow-hidden">
+          <h2 className="font-bold text-lg mb-2">Participants ({players.length})</h2>
+          <div className="bg-card border border-line rounded-2xl overflow-hidden">
             {players.map((tp, i) => (
-              <div key={tp.player_id} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${i === players.length - 1 ? '' : 'border-b border-[#1E3040]'}`}>
+              <div key={tp.player_id} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${i === players.length - 1 ? '' : 'border-b border-line'}`}>
                 <span className="flex-1 font-medium">{playerById[tp.player_id]?.name || 'Unknown'}</span>
                 {tp.knockout_round === 'champion' && <span className="text-amber-400">🏆</span>}
                 {tp.eliminated && <span className="text-xs text-red-400">Eliminated</span>}
-                {tp.group_number && <span className="text-xs text-[#7A9BAD]">Group {tp.group_number}</span>}
+                {tp.group_number && <span className="text-xs text-muted">Group {tp.group_number}</span>}
               </div>
             ))}
           </div>
@@ -290,23 +290,23 @@ function MatchCard({ match, playerName, tournamentId, canReport, waiting, screen
     setBusy(false);
   }
 
-  const inputCls = 'rounded-lg px-2 py-2 text-sm bg-[#0D1B24] border border-[#1E3040] text-[#E8F0F5]';
+  const inputCls = 'rounded-lg px-2 py-2 text-sm bg-app border border-line text-ink';
 
   return (
-    <div className={`bg-[#162330] border rounded-xl px-4 py-3 ${played ? 'border-[#1E3040]' : 'border-amber-400/20'}`}>
+    <div className={`bg-card border rounded-xl px-4 py-3 ${played ? 'border-line' : 'border-amber-400/20'}`}>
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <span className={`text-sm font-medium ${winnerA ? 'text-green-400' : ''} ${!match.player_a ? 'text-[#7A9BAD] italic' : ''}`}>
+          <span className={`text-sm font-medium ${winnerA ? 'text-green-400' : ''} ${!match.player_a ? 'text-muted italic' : ''}`}>
             {match.player_a ? playerName(match.player_a) : bye ? 'Bye' : 'TBD'}
           </span>
         </div>
         <div className="font-mono text-sm font-bold text-center w-16">
-          {bye ? <span className="text-[#7A9BAD] text-xs">bye</span>
+          {bye ? <span className="text-muted text-xs">bye</span>
             : played ? `${match.score_a} – ${match.score_b}`
-            : <span className="text-[#7A9BAD] text-xs">vs</span>}
+            : <span className="text-muted text-xs">vs</span>}
         </div>
         <div className="flex-1 min-w-0 text-right">
-          <span className={`text-sm font-medium ${winnerB ? 'text-green-400' : ''} ${!match.player_b ? 'text-[#7A9BAD] italic' : ''}`}>
+          <span className={`text-sm font-medium ${winnerB ? 'text-green-400' : ''} ${!match.player_b ? 'text-muted italic' : ''}`}>
             {match.player_b ? playerName(match.player_b) : bye ? 'Bye' : 'TBD'}
           </span>
         </div>
@@ -318,7 +318,7 @@ function MatchCard({ match, playerName, tournamentId, canReport, waiting, screen
 
       {played && screenshot && (
         <a href={screenshot} target="_blank" rel="noreferrer"
-          className="mt-2 inline-flex items-center gap-1.5 text-xs text-[#7A9BAD] hover:text-[#E8F0F5]">
+          className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted hover:text-ink">
           <Camera size={12} /> View screenshot
         </a>
       )}
@@ -332,34 +332,34 @@ function MatchCard({ match, playerName, tournamentId, canReport, waiting, screen
 
       {ready && canReport && !open && (
         <button onClick={() => setOpen(true)}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border border-[#1E3040] text-[#E8F0F5] hover:bg-[#1E3040]">
+          className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border border-line text-ink hover:bg-line">
           <Upload size={12} /> {waiting ? 'Report a different score' : 'Report result'}
         </button>
       )}
 
       {open && (
-        <form onSubmit={submit} className="mt-3 pt-3 border-t border-[#1E3040] space-y-3">
+        <form onSubmit={submit} className="mt-3 pt-3 border-t border-line space-y-3">
           <div className="flex items-center gap-2">
             <input type="number" min={0} max={99} inputMode="numeric" value={scoreA} onChange={e => setScoreA(e.target.value)}
               aria-label={`Goals for ${playerName(match.player_a)}`} placeholder="0"
               className={`${inputCls} w-16 text-center font-mono`} />
-            <span className="text-[#7A9BAD] text-sm font-bold">–</span>
+            <span className="text-muted text-sm font-bold">–</span>
             <input type="number" min={0} max={99} inputMode="numeric" value={scoreB} onChange={e => setScoreB(e.target.value)}
               aria-label={`Goals for ${playerName(match.player_b)}`} placeholder="0"
               className={`${inputCls} w-16 text-center font-mono`} />
             <button type="button" onClick={() => { setOpen(false); setError(''); }} aria-label="Cancel"
-              className="ml-auto text-[#7A9BAD] hover:text-[#E8F0F5]"><X size={16} /></button>
+              className="ml-auto text-muted hover:text-ink"><X size={16} /></button>
           </div>
           <input type="text" value={name} onChange={e => setName(e.target.value)} maxLength={40}
             placeholder="Your name" aria-label="Your name" className={`${inputCls} w-full px-3`} />
-          <label className="flex items-center gap-2 text-xs text-[#7A9BAD] cursor-pointer">
+          <label className="flex items-center gap-2 text-xs text-muted cursor-pointer">
             <Camera size={14} className="flex-shrink-0" />
             <span className="truncate">{file ? file.name : 'Add a screenshot of the final score'}</span>
             <input type="file" accept="image/*" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
           </label>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button type="submit" disabled={busy}
-            className="w-full rounded-lg px-3 py-2 text-sm font-semibold bg-teal-600 text-white disabled:opacity-60">
+            className="w-full rounded-lg px-3 py-2 text-sm font-semibold bg-brand text-onBrand disabled:opacity-60">
             {busy ? 'Sending…' : 'Send for approval'}
           </button>
         </form>

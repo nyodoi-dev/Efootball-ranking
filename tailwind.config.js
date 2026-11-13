@@ -1,36 +1,46 @@
 /** @type {import('tailwindcss').Config} */
+const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
-        // legacy dark theme (kept for admin)
-        pitch: '#13201A',
-        panel: '#1D2E25',
-        panelAlt: '#243A2F',
-        chalk: '#F4F1E8',
-        muted: '#8FAE9C',
-        lime: '#9FE870',
-        coral: '#FF6B5B',
-        gold: '#E8C468',
-        // new light theme
-        surface: '#F0F4F8',
-        card: '#FFFFFF',
-        border: '#DDE3EA',
-        teal: '#1B4D5C',
-        tealLight: '#2A6478',
-        tealMuted: '#5E8F9E',
-        ink: '#0F1E26',
-        inkMuted: '#4A6273',
+        // The theme. Values live in src/index.css and switch with .dark.
+        app: v('bg'),
+        card: v('card'),
+        card2: v('card-2'),
+        nav: v('nav'),
+        line: v('line'),
+        ink: v('ink'),
+        muted: v('muted'),
+        brand: { DEFAULT: v('brand'), strong: v('brand-strong') },
+        onBrand: v('on-brand'),
+        accent: v('accent'),
+        danger: v('danger'),
+        win: v('win'),
+        turf: v('pitch'),
+
+        // Older names used across the pages, pointed at the theme.
+        teal: { DEFAULT: v('brand'), 400: v('brand'), 500: v('brand'), 600: v('brand') },
+        tealLight: v('brand-strong'),
+        tealMuted: v('muted'),
+        pitch: v('bg'),
+        panel: v('card'),
+        panelAlt: v('card-2'),
+        chalk: v('ink'),
+        lime: v('brand'),
+        coral: v('danger'),
+        gold: v('accent'),
+        surface: v('bg'),
+        border: v('line'),
+        inkMuted: v('muted'),
       },
       fontFamily: {
-        display: ['Teko', 'sans-serif'],
-        mono: ['"Space Mono"', 'monospace'],
-        sans: ['"Work Sans"', 'sans-serif'],
-      },
-      boxShadow: {
-        card: '0 2px 8px rgba(0,0,0,0.08)',
-        cardHover: '0 4px 16px rgba(0,0,0,0.14)',
+        display: ['"Big Shoulders Display"', 'Impact', 'sans-serif'],
+        sans: ['"Instrument Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"Instrument Sans"', 'system-ui', 'sans-serif'],
       },
     },
   },

@@ -25,13 +25,13 @@ export default function AdminLogin() {
   return (
     <div className="max-w-sm mx-auto px-4 py-20">
       <div className="text-center mb-8">
-        <h1 className="font-display font-bold text-5xl uppercase leading-none tracking-wide">Admin</h1>
+        <h1 className="font-display font-bold text-5xl leading-none tracking-wide">Admin</h1>
         <p className="text-muted text-sm mt-2">Sign in to manage The Table.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-panel border border-white/10 rounded-lg p-5 space-y-4">
+      <form onSubmit={handleSubmit} className="bg-panel border border-line rounded-lg p-5 space-y-4">
         <div>
-          <label htmlFor="admin-password" className="block text-muted text-xs uppercase tracking-wide mb-1">Admin password</label>
+          <label htmlFor="admin-password" className="block text-muted text-xs mb-1">Admin password</label>
           <input
             id="admin-password"
             type="password"
@@ -39,7 +39,7 @@ export default function AdminLogin() {
             onChange={(e) => setPassword(e.target.value)}
             required
             autoFocus
-            className="w-full rounded-md px-3 py-2 text-sm bg-panelAlt border border-white/10 text-chalk"
+            className="w-full rounded-md px-3 py-2 text-sm bg-panelAlt border border-line text-chalk"
           />
         </div>
 
@@ -52,7 +52,7 @@ export default function AdminLogin() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full flex items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium bg-lime text-pitch disabled:opacity-60"
+          className="w-full flex items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium bg-brand text-onBrand disabled:opacity-60"
         >
           <LogIn size={16} /> {busy ? 'Signing in…' : 'Sign in'}
         </button>

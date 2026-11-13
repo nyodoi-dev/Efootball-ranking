@@ -1,57 +1,70 @@
-@import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Work+Sans:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ── Light mode (default) ─────────────────────────── */
+/* One theme for every page. Colours are stored as RGB channels so Tailwind's
+   opacity modifiers (bg-brand/10) work with them. */
+
+/* Daylight: chalk-white ground, pitch-green brand, referee-card accents. */
 :root {
-  --bg:        #F0F4F8;
-  --card:      #FFFFFF;
-  --border:    #DDE3EA;
-  --ink:       #0F1E26;
-  --ink-muted: #4A6273;
-  --nav-bg:    #FFFFFF;
-  --nav-border:#DDE3EA;
-  --input-bg:  #FFFFFF;
-  --stat-card: #FFFFFF;
+  --bg: 243 246 241;        /* chalk */
+  --card: 255 255 255;
+  --card-2: 236 241 233;
+  --nav: 255 255 255;
+  --line: 215 224 211;
+  --ink: 16 32 26;
+  --muted: 86 105 94;
+  --brand: 11 107 58;       /* pitch green */
+  --brand-strong: 8 84 46;
+  --on-brand: 255 255 255;
+  --accent: 214 158 0;      /* yellow card, darkened for text on white */
+  --danger: 200 30 52;      /* red card */
+  --win: 22 138 72;
+  --pitch: 11 96 53;        /* masthead turf, same in both modes */
+  color-scheme: light;
 }
 
-/* ── Dark mode ────────────────────────────────────── */
+/* Floodlights: night turf. */
 .dark {
-  --bg:        #0D1B24;
-  --card:      #162330;
-  --border:    #1E3040;
-  --ink:       #E8F0F5;
-  --ink-muted: #7A9BAD;
-  --nav-bg:    #111E28;
-  --nav-border:#1E3040;
-  --input-bg:  #162330;
-  --stat-card: #162330;
+  --bg: 10 26 19;
+  --card: 18 40 30;
+  --card-2: 25 52 39;
+  --nav: 13 32 24;
+  --line: 34 64 48;
+  --ink: 234 242 236;
+  --muted: 143 167 154;
+  --brand: 62 201 122;
+  --brand-strong: 94 220 147;
+  --on-brand: 8 30 20;
+  --accent: 247 198 0;
+  --danger: 255 107 107;
+  --win: 62 201 122;
+  --pitch: 11 96 53;
+  color-scheme: dark;
 }
 
-/* ── CSS var utilities ────────────────────────────── */
-.bg-app       { background: var(--bg); }
-.bg-card-d    { background: var(--card); }
-.border-d     { border-color: var(--border); }
-.text-ink-d   { color: var(--ink); }
-.text-muted-d { color: var(--ink-muted); }
-.bg-nav       { background: var(--nav-bg); }
-.border-nav   { border-color: var(--nav-border); }
-.bg-input     { background: var(--input-bg); }
-
-/* ── Smooth transition on mode switch ─────────────── */
-*, *::before, *::after {
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
 }
+
+/* Numbers line up in tables and scores. */
+.font-mono, .font-display { font-variant-numeric: tabular-nums; }
 
 html { scroll-behavior: smooth; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 button:focus-visible,
+a:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 2px solid #1B4D5C;
+  outline: 2px solid rgb(var(--brand));
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
