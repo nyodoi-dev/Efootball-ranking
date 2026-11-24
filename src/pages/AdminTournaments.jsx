@@ -1,7 +1,8 @@
 
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trophy, ChevronRight, Loader2 } from 'lucide-react';
+import { AdminPage } from '../components/AdminShell';
+import { Plus, Trophy, ChevronRight, Loader2 } from 'lucide-react';
 
 const FORMAT_LABELS = {
   knockout: 'Knockout',
@@ -11,8 +12,8 @@ const FORMAT_LABELS = {
 
 const STATUS_COLORS = {
   draft: 'bg-muted/20 text-muted',
-  active: 'bg-amber-400/20 text-amber-400',
-  completed: 'bg-green-500/20 text-green-400',
+  active: 'bg-accent/15 text-accent',
+  completed: 'bg-win/15 text-win',
 };
 
 export default function AdminTournamentsPage() {
@@ -63,22 +64,19 @@ export default function AdminTournamentsPage() {
     setBusy(false);
   }
 
-  const iCls = 'w-full rounded-xl px-4 py-3 text-sm border bg-app border-line text-ink focus:outline-none focus:ring-2 focus:ring-teal-500/30';
+  const iCls = 'w-full rounded-xl px-4 py-3 text-sm border bg-app border-line text-ink focus:outline-none focus:ring-2 focus:ring-brand/40';
 
   return (
-    <div className="max-w-lg mx-auto min-h-screen bg-app text-ink pb-10">
-      <div className="sticky top-0 z-40 bg-nav border-b border-line px-4 py-3 flex items-center gap-3">
-        <Link to="/admin" className="text-muted hover:text-ink"><ArrowLeft size={20} /></Link>
-        <h1 className="font-bold text-xl flex-1">Tournaments</h1>
-        <button onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium bg-brand text-onBrand">
-          <Plus size={16} /> New
+    <AdminPage title="Tournaments" subtitle="Create and run cups."
+      actions={
+        <button onClick={() => setShowForm(v => !v)} aria-expanded={showForm}
+          className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold bg-brand text-onBrand">
+          <Plus size={16} aria-hidden="true" /> New
         </button>
-      </div>
-
-      <div className="px-4 py-5 space-y-5">
+      }>
+      <div className="space-y-5">
         {message && (
-          <div className={`rounded-xl px-4 py-3 text-sm ${message.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-400/20' : 'bg-green-500/10 text-green-400 border border-green-400/20'}`}>
+          <div className={`rounded-xl px-4 py-3 text-sm ${message.type === 'error' ? 'bg-danger/10 text-danger border border-danger/30' : 'bg-win/10 text-win border border-win/30'}`}>
             {message.text}
           </div>
         )}
@@ -113,15 +111,16 @@ export default function AdminTournamentsPage() {
                 </div>
               </div>
             )}
-            <label className="flex items-center gap-3 cursor-pointer">
-              <div onClick={() => setAffectsElo(v => !v)}
-                className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${affectsElo ? 'bg-teal-600' : 'bg-line'}`}>
-                <div className={`w-5 h-5 rounded-full bg-card transition-transform ${affectsElo ? 'translate-x-5' : ''}`} />
-              </div>
-              <span className="text-sm">Results affect main ELO rankings</span>
-            </label>
+            <div className="flex items-center gap-3">
+              <button type="button" role="switch" aria-checked={affectsElo} aria-labelledby="elo-switch-label"
+                onClick={() => setAffectsElo(v => !v)}
+                className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 flex-shrink-0 ${affectsElo ? 'bg-brand' : 'bg-line'}`}>
+                <span className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${affectsElo ? 'translate-x-5' : ''}`} />
+              </button>
+              <span id="elo-switch-label" className="text-sm">Results affect main ELO rankings</span>
+            </div>
             {affectsElo && (
-              <p className="text-muted text-xs bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
+              <p className="text-muted text-xs bg-accent/10 border border-accent/30 rounded-lg px-3 py-2">
                 ⚠️ Tournament match results will update players' ELO ratings on the main leaderboard.
               </p>
             )}
@@ -151,9 +150,9 @@ export default function AdminTournamentsPage() {
           <div className="space-y-2">
             {tournaments.map(t => (
               <Link key={t.id} to={`/admin/tournaments/${t.id}`}
-                className="bg-card border border-line rounded-2xl px-4 py-4 flex items-center gap-3 hover:border-teal-600/40 transition-colors block">
-                <div className="w-10 h-10 rounded-xl bg-teal-600/10 flex items-center justify-center flex-shrink-0">
-                  <Trophy size={18} className="text-teal-400" />
+                className="bg-card border border-line rounded-2xl px-4 py-4 flex items-center gap-3 hover:border-brand/40 transition-colors block">
+                <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center flex-shrink-0">
+                  <Trophy size={18} className="text-brand-strong" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold truncate">{t.name}</p>
@@ -168,6 +167,6 @@ export default function AdminTournamentsPage() {
           </div>
         )}
       </div>
-    </div>
+    </AdminPage>
   );
 }

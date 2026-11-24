@@ -20,6 +20,7 @@ export default {
         accent: v('accent'),
         danger: v('danger'),
         win: v('win'),
+        draw: v('draw'),
         turf: v('pitch'),
 
         // Older names used across the pages, pointed at the theme.

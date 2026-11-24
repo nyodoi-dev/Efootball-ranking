@@ -5,43 +5,49 @@
 @tailwind utilities;
 
 /* One theme for every page. Colours are stored as RGB channels so Tailwind's
-   opacity modifiers (bg-brand/10) work with them. */
+   opacity modifiers (bg-brand/10) work with them.
 
-/* Daylight: chalk-white ground, pitch-green brand, referee-card accents. */
+   Direction: premium esports league. Navy surfaces, championship gold used
+   sparingly (primary actions, rank 1, achievements). Dark is the reference
+   theme; light mirrors it. Values follow the UI/UX plan's design system. */
+
+/* Light: cool grey ground, white cards, deep gold. */
 :root {
-  --bg: 243 246 241;        /* chalk */
+  --bg: 245 246 248;
   --card: 255 255 255;
-  --card-2: 236 241 233;
+  --card-2: 238 241 245;
   --nav: 255 255 255;
-  --line: 215 224 211;
-  --ink: 16 32 26;
-  --muted: 86 105 94;
-  --brand: 11 107 58;       /* pitch green */
-  --brand-strong: 8 84 46;
-  --on-brand: 255 255 255;
-  --accent: 214 158 0;      /* yellow card, darkened for text on white */
-  --danger: 200 30 52;      /* red card */
-  --win: 22 138 72;
-  --pitch: 11 96 53;        /* masthead turf, same in both modes */
+  --line: 220 226 234;
+  --ink: 24 32 43;
+  --muted: 100 116 139;
+  --brand: 184 139 53;          /* gold: fills and borders */
+  --brand-strong: 143 104 30;   /* gold: text on light surfaces, button hover */
+  --on-brand: 24 32 43;         /* dark text on gold fills */
+  --accent: 161 98 7;           /* pending / highlight, readable on white */
+  --danger: 220 38 38;
+  --win: 4 120 87;
+  --draw: 71 85 105;
+  --pitch: 16 24 38;            /* hero banner base, dark in both themes */
   color-scheme: light;
 }
 
-/* Floodlights: night turf. */
+/* Dark: the primary reference. */
 .dark {
-  --bg: 10 26 19;
-  --card: 18 40 30;
-  --card-2: 25 52 39;
-  --nav: 13 32 24;
-  --line: 34 64 48;
-  --ink: 234 242 236;
-  --muted: 143 167 154;
-  --brand: 62 201 122;
-  --brand-strong: 94 220 147;
-  --on-brand: 8 30 20;
-  --accent: 247 198 0;
-  --danger: 255 107 107;
-  --win: 62 201 122;
-  --pitch: 11 96 53;
+  --bg: 17 23 34;
+  --card: 32 43 58;
+  --card-2: 38 50 68;
+  --nav: 14 20 30;
+  --line: 52 64 82;
+  --ink: 245 246 248;
+  --muted: 170 181 197;
+  --brand: 208 166 79;
+  --brand-strong: 231 200 117;
+  --on-brand: 17 23 34;
+  --accent: 231 200 117;
+  --danger: 248 113 113;
+  --win: 52 211 153;
+  --draw: 148 163 184;
+  --pitch: 16 24 38;
   color-scheme: dark;
 }
 
@@ -51,20 +57,73 @@ body {
 }
 
 /* Numbers line up in tables and scores. */
-.font-mono, .font-display { font-variant-numeric: tabular-nums; }
+.font-mono, .font-display, .tabular { font-variant-numeric: tabular-nums; }
 
 html { scroll-behavior: smooth; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Space under fixed bottom navigation on phones with a home indicator. */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+summary:focus-visible {
   outline: 2px solid rgb(var(--brand));
   outline-offset: 2px;
 }
 
+/* Home hero trophy: a soft pulsing halo, a breathing glow and twinkling sparkles.
+   Decorative only; the reduced-motion rule below switches all of it off. */
+.trophy-stage { display: grid; place-items: center; }
+.trophy-stage > * { grid-area: 1 / 1; }
+.trophy-halo {
+  width: 150%; aspect-ratio: 1; border-radius: 9999px;
+  background: radial-gradient(closest-side, rgb(246 227 161 / .55), rgb(208 166 79 / .22) 45%, transparent 72%);
+  animation: trophy-halo 3.6s ease-in-out infinite;
+}
+.trophy-glow {
+  animation: trophy-glow 3.6s ease-in-out infinite, trophy-float 6s ease-in-out infinite;
+}
+.trophy-spark { position: absolute; width: 16px; height: 16px; opacity: 0; animation: trophy-twinkle 3.2s ease-in-out infinite; }
+.trophy-spark.s1 { top: 6%; left: 14%; animation-delay: 0s; }
+.trophy-spark.s2 { top: 22%; right: 6%; width: 11px; height: 11px; animation-delay: 1.1s; }
+.trophy-spark.s3 { bottom: 24%; left: 2%; width: 12px; height: 12px; animation-delay: 2.1s; }
+@keyframes trophy-halo { 0%, 100% { opacity: .55; transform: scale(.92); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes trophy-glow {
+  0%, 100% { filter: drop-shadow(0 4px 14px rgb(208 166 79 / .35)); }
+  50% { filter: drop-shadow(0 6px 30px rgb(246 227 161 / .85)); }
+}
+@keyframes trophy-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -6px; } }
+@keyframes trophy-twinkle {
+  0%, 100% { opacity: 0; transform: scale(.4) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1) rotate(45deg); }
+}
+
+/* Site-wide sparkle background. Sits behind all content. */
+.sparkles { position: fixed; inset: 0; z-index: -10; pointer-events: none; overflow: hidden; }
+.sparkle {
+  position: absolute; border-radius: 9999px; opacity: 0;
+  background: rgb(var(--brand));
+  box-shadow: 0 0 8px 1px rgb(var(--brand) / .7);
+  animation: sparkle-twinkle 4s ease-in-out infinite;
+}
+.sparkle-star {
+  border-radius: 0; background: rgb(var(--brand)); box-shadow: none;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+}
+@keyframes sparkle-twinkle {
+  0%, 100% { opacity: 0; transform: scale(.4); }
+  50% { opacity: .85; transform: scale(1); }
+}
+.dark .sparkle { opacity: 0; }
+:root:not(.dark) .sparkle { animation-name: sparkle-twinkle-light; }
+@keyframes sparkle-twinkle-light {
+  0%, 100% { opacity: 0; transform: scale(.4); }
+  50% { opacity: .45; transform: scale(1); }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
