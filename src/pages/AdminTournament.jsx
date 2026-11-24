@@ -2,8 +2,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
+import { AdminPage } from '../components/AdminShell';
 import {
-  ArrowLeft, Plus, Play, Check, Trash2, Users,
+  Plus, Play, Check, Trash2, Users,
   Trophy, ChevronRight, Loader2,
 } from 'lucide-react';
 
@@ -111,11 +112,11 @@ export default function AdminTournamentPage() {
     if (!window.confirm('Delete this tournament? This cannot be undone.')) return;
     setBusy(true);
     await fetch(`/api/tournaments/${id}`, { method: 'DELETE' });
-    navigate('/admin');
+    navigate('/admin/tournaments');
   }
 
-  if (loading) return <div className="max-w-lg mx-auto px-4 py-10 text-center text-muted text-sm">Loading…</div>;
-  if (!data?.tournament) return <div className="max-w-lg mx-auto px-4 py-10 text-center text-muted text-sm">Not found.</div>;
+  if (loading) return <div className="px-4 py-10 text-center text-muted text-sm">Loading…</div>;
+  if (!data?.tournament) return <div className="px-4 py-10 text-center text-muted text-sm">Not found.</div>;
 
   const { tournament, players, matches } = data;
   const isDraft = tournament.status === 'draft';
@@ -167,21 +168,18 @@ export default function AdminTournamentPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto min-h-screen bg-app text-ink pb-10">
-      <div className="sticky top-0 z-40 bg-nav border-b border-line px-4 py-3 flex items-center gap-3">
-        <Link to="/admin" className="text-muted hover:text-ink"><ArrowLeft size={20} /></Link>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-lg truncate">{tournament.name}</h1>
-          <p className="text-xs text-muted capitalize">{tournament.format.replace('_', ' ')} · {tournament.status}</p>
-        </div>
-        <button onClick={deleteTournament} className="text-red-400 hover:text-red-300">
-          <Trash2 size={18} />
+    <AdminPage title={tournament.name}
+      subtitle={`${tournament.format.replace('_', ' ')} · ${tournament.status}`}
+      back={{ to: '/admin/tournaments', label: 'All tournaments' }}
+      actions={
+        <button onClick={deleteTournament} aria-label={`Delete ${tournament.name}`}
+          className="w-10 h-10 rounded-xl border border-line flex items-center justify-center text-danger hover:bg-danger/10">
+          <Trash2 size={18} aria-hidden="true" />
         </button>
-      </div>
-
-      <div className="px-4 py-5 space-y-6">
+      }>
+      <div className="space-y-6">
         {message && (
-          <div className={`rounded-xl px-4 py-3 text-sm ${message.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-400/20' : 'bg-green-500/10 text-green-400 border border-green-400/20'}`}>
+          <div className={`rounded-xl px-4 py-3 text-sm ${message.type === 'error' ? 'bg-danger/10 text-danger border border-danger/30' : 'bg-win/10 text-win border border-win/30'}`}>
             {message.text}
           </div>
         )}
@@ -212,9 +210,9 @@ export default function AdminTournamentPage() {
                   <button key={p.id} onClick={() => setSelectedPlayers(prev =>
                     selected ? prev.filter(x => x !== p.id) : [...prev, p.id]
                   )}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${i === allPlayers.length - 1 ? '' : 'border-b border-line'} ${selected ? 'bg-teal-600/10' : 'hover:bg-line'}`}>
-                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${selected ? 'bg-teal-600 border-teal-600' : 'border-muted'}`}>
-                      {selected && <Check size={12} className="text-white" />}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors ${i === allPlayers.length - 1 ? '' : 'border-b border-line'} ${selected ? 'bg-brand/10' : 'hover:bg-line'}`}>
+                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${selected ? 'bg-brand border-brand' : 'border-muted'}`}>
+                      {selected && <Check size={12} className="text-onBrand" />}
                     </div>
                     <span className="font-medium">{p.name}</span>
                     <span className="ml-auto text-muted text-xs font-mono">{p.elo} ELO</span>
@@ -244,7 +242,7 @@ export default function AdminTournamentPage() {
               {waitingReports.map(r => {
                 const m = matchById[r.match_id];
                 return (
-                  <div key={r.id} className="bg-card border border-teal-500/40 rounded-xl px-4 py-3">
+                  <div key={r.id} className="bg-card border border-brand/40 rounded-xl px-4 py-3">
                     <div className="flex items-center justify-between text-sm font-medium">
                       <span>{playerName(m.player_a)}</span>
                       <span className="font-mono font-bold px-2">{r.score_a} – {r.score_b}</span>
@@ -253,7 +251,7 @@ export default function AdminTournamentPage() {
                     <p className="text-xs text-muted mt-1">
                       {roundLabel(m.round)} · reported by {r.submitted_by}
                       {r.screenshot_url && (
-                        <> · <a href={r.screenshot_url} target="_blank" rel="noreferrer" className="underline text-teal-400">screenshot</a></>
+                        <> · <a href={r.screenshot_url} target="_blank" rel="noreferrer" className="underline text-brand-strong">screenshot</a></>
                       )}
                     </p>
                     <div className="flex gap-2 mt-2">
@@ -262,7 +260,7 @@ export default function AdminTournamentPage() {
                         <Check size={12} /> Approve
                       </button>
                       <button onClick={() => rejectReport(r.id)} disabled={busy}
-                        className="flex-1 flex items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium border border-red-400/40 text-red-400 disabled:opacity-60">
+                        className="flex-1 flex items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium border border-danger/40 text-danger disabled:opacity-60">
                         <Trash2 size={12} /> Reject
                       </button>
                     </div>
@@ -282,7 +280,7 @@ export default function AdminTournamentPage() {
                 <h2 className="font-bold text-base mb-2">{groupLabel} — Pending</h2>
                 <div className="space-y-2">
                   {gMatches.map(m => (
-                    <div key={m.id} className="bg-card border border-amber-400/20 rounded-xl px-4 py-3">
+                    <div key={m.id} className="bg-card border border-accent/30 rounded-xl px-4 py-3">
                       <div className="flex items-center justify-between text-sm font-medium">
                         <span>{playerName(m.player_a)}</span>
                         <span className="text-muted text-xs px-2">vs</span>
@@ -303,7 +301,7 @@ export default function AdminTournamentPage() {
                 </h2>
                 <div className="space-y-2">
                   {knockoutByRound[round].map(m => (
-                    <div key={m.id} className="bg-card border border-amber-400/20 rounded-xl px-4 py-3">
+                    <div key={m.id} className="bg-card border border-accent/30 rounded-xl px-4 py-3">
                       <div className="flex items-center justify-between text-sm font-medium">
                         <span>{playerName(m.player_a)}</span>
                         <span className="text-muted text-xs px-2">vs</span>
@@ -331,9 +329,9 @@ export default function AdminTournamentPage() {
             <div className="bg-card border border-line rounded-2xl overflow-hidden">
               {playedMatches.map((m, i) => (
                 <div key={m.id} className={`flex items-center gap-3 px-4 py-3 text-sm ${i === playedMatches.length - 1 ? '' : 'border-b border-line'}`}>
-                  <span className={`flex-1 ${m.winner_id === m.player_a ? 'font-bold text-green-400' : ''}`}>{playerName(m.player_a)}</span>
+                  <span className={`flex-1 ${m.winner_id === m.player_a ? 'font-bold text-win' : ''}`}>{playerName(m.player_a)}</span>
                   <span className="font-mono text-xs text-muted">{m.score_a} – {m.score_b}</span>
-                  <span className={`flex-1 text-right ${m.winner_id === m.player_b ? 'font-bold text-green-400' : ''}`}>{playerName(m.player_b)}</span>
+                  <span className={`flex-1 text-right ${m.winner_id === m.player_b ? 'font-bold text-win' : ''}`}>{playerName(m.player_b)}</span>
                 </div>
               ))}
             </div>
@@ -346,6 +344,6 @@ export default function AdminTournamentPage() {
           <Trophy size={16} /> View Public Tournament Page <ChevronRight size={14} />
         </Link>
       </div>
-    </div>
+    </AdminPage>
   );
 }

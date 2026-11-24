@@ -1,69 +1,32 @@
-
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Image as ImageIcon, Save, Loader2, Award, User, Trophy, Shield } from 'lucide-react';
+import { ArrowLeft, Award, ChevronDown, Image as ImageIcon, Loader2, Save, User, Users } from 'lucide-react';
 import { uploadTeamPicture } from '../lib/api';
+import { useLeague } from '../lib/league';
+import { Avatar, Card, EmptyState, FormDots, LeagueGate, Page, SectionHeading, StatusBadge, inputCls } from '../components/ui';
+import { MatchRow } from '../components/MatchRow';
+import { TROPHY_TYPES, resultFor, signed } from '../lib/format';
 
-function FormDots({ form }) {
-  const last5 = (form || []).slice(-5).reverse();
-  const slots = [...last5, ...Array(5 - last5.length).fill(null)];
+function Header({ name }) {
+  // Phones get their own sticky header here; desktop uses the shell's top bar.
   return (
-    <div className="flex gap-1.5">
-      {slots.map((r, i) => {
-        let bg = '#DDE3EA';
-        if (r === 'W') bg = '#27AE60';
-        if (r === 'D') bg = '#F0A500';
-        if (r === 'L') bg = '#E74C3C';
-        return <div key={i} className="w-3 h-3 rounded-sm" style={{ background: bg }} />;
-      })}
-    </div>
+    <header className="lg:hidden sticky top-0 z-40 bg-nav/95 backdrop-blur border-b border-line h-14 px-4 flex items-center gap-2">
+      <Link to="/standings" aria-label="Back to standings" className="-ml-2 w-10 h-10 flex items-center justify-center text-muted">
+        <ArrowLeft size={20} />
+      </Link>
+      <h1 className="font-display font-bold text-2xl leading-none text-ink truncate">{name}</h1>
+    </header>
   );
 }
 
-const inputCls =
-  'w-full rounded-xl px-4 py-3 text-sm bg-card border border-line text-ink placeholder:text-muted shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/30';
-
-export default function PlayerProfile() {
-  const { id } = useParams();
-  const [player, setPlayer]       = useState(null);
-  const [matches, setMatches]     = useState([]);
-  const [playerNames, setPlayerNames] = useState({});
-  const [loading, setLoading]     = useState(true);
-  const [rankInput, setRankInput] = useState('');
+function EditProfile({ player, onSaved }) {
+  const [rankInput, setRankInput] = useState(player.highest_rank || '');
   const [pictureFile, setPictureFile] = useState(null);
-  const [saving, setSaving]       = useState(false);
-  const [message, setMessage]     = useState(null);
-  const [pin, setPin]             = useState('');
+  const [pin, setPin] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState(null);
 
-  useEffect(() => { load(); }, [id]);
-
-  async function load() {
-    setLoading(true);
-    try {
-      const [playersRes, matchesRes] = await Promise.all([fetch('/api/players'), fetch('/api/matches')]);
-      const players = await playersRes.json();
-      const allMatches = await matchesRes.json();
-      const names = {};
-      players.forEach((p) => (names[p.id] = p.name));
-      setPlayerNames(names);
-      const found = players.find((p) => p.id === id);
-      setPlayer(found || null);
-      setRankInput(found?.highest_rank || '');
-      setMatches(allMatches.filter((m) => m.player_a === id || m.player_b === id));
-    } catch (e) { console.error(e); }
-    setLoading(false);
-  }
-
-  const form = (() => {
-    return [...matches].reverse().map((m) => {
-      const isA = m.player_a === id;
-      const my = isA ? m.score_a : m.score_b;
-      const their = isA ? m.score_b : m.score_a;
-      return my > their ? 'W' : my < their ? 'L' : 'D';
-    });
-  })();
-
-  async function saveProfile() {
+  async function save() {
     setSaving(true); setMessage(null);
     try {
       let teamPictureUrl;
@@ -77,179 +40,214 @@ export default function PlayerProfile() {
       }
       const body = { highestRank: rankInput, ...(player.has_pin ? { pin } : { newPin: pin }) };
       if (teamPictureUrl) body.teamPictureUrl = teamPictureUrl;
-      const res = await fetch(`/api/players/${id}/profile`, {
+      const res = await fetch(`/api/players/${player.id}/profile`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) { setMessage({ type: 'error', text: data.error || 'Could not save.' }); }
-      else { setPlayer(data); setPictureFile(null); setMessage({ type: 'success', text: 'Profile updated!' }); }
-    } catch { setMessage({ type: 'error', text: 'Network error — try again.' }); }
+      else { setPictureFile(null); setPin(''); setMessage({ type: 'success', text: 'Profile updated.' }); onSaved(); }
+    } catch { setMessage({ type: 'error', text: 'Network error. Try again.' }); }
     setSaving(false);
   }
 
-  if (loading) {
-    return (
-      <div className="max-w-lg mx-auto min-h-screen bg-app flex items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-brand" />
+  const label = 'block text-xs text-muted mb-1.5';
+  return (
+    <details className="group bg-card border border-line rounded-2xl">
+      <summary className="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none rounded-2xl">
+        <span className="font-display font-bold text-2xl leading-none text-ink">Edit profile</span>
+        <ChevronDown size={18} className="text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <div className="px-5 pb-5 space-y-3 max-w-lg">
+        <div>
+          <label htmlFor="team-picture" className={label}>Team / club picture</label>
+          <input id="team-picture" type="file" accept="image/*" onChange={(e) => setPictureFile(e.target.files?.[0] || null)}
+            className="w-full text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand/15 file:px-3 file:py-2 file:text-brand-strong file:text-sm file:font-semibold" />
+          {pictureFile && <p className="text-muted text-xs mt-1.5 flex items-center gap-1"><ImageIcon size={12} aria-hidden="true" /> {pictureFile.name}</p>}
+        </div>
+        <div>
+          <label htmlFor="highest-rank" className={label}>Highest rank ever (real eFootball)</label>
+          <input id="highest-rank" value={rankInput} onChange={(e) => setRankInput(e.target.value)}
+            placeholder="e.g. Division 1, Legend" className={inputCls} />
+        </div>
+        <div>
+          <label htmlFor="profile-pin" className={label}>{player.has_pin ? 'Your PIN' : 'Choose a PIN (4 to 8 digits)'}</label>
+          <input id="profile-pin" type="password" inputMode="numeric" autoComplete="off" maxLength={8}
+            value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+            placeholder={player.has_pin ? 'PIN' : 'e.g. 4821'} className={inputCls} />
+          <p className="text-muted text-xs mt-1.5">
+            {player.has_pin
+              ? 'Only the person with this PIN can change this profile. Forgot it? Ask an admin to reset it.'
+              : 'This locks the profile to you. You will need the PIN for every later change.'}
+          </p>
+        </div>
+        {message && (
+          <div role={message.type === 'error' ? 'alert' : 'status'}
+            className={`rounded-xl px-4 py-3 text-sm font-medium border ${
+              message.type === 'error' ? 'bg-danger/10 text-danger border-danger/30' : 'bg-win/10 text-win border-win/30'
+            }`}>
+            {message.text}
+          </div>
+        )}
+        <button onClick={save} disabled={saving}
+          className="flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold bg-brand text-onBrand hover:bg-brand-strong active:scale-[.98] transition-all disabled:opacity-60">
+          {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save profile
+        </button>
       </div>
-    );
-  }
+    </details>
+  );
+}
+
+function Profile() {
+  const { id } = useParams();
+  const { players, matches, standings, playerById, formByPlayer, goals, trophies, reload } = useLeague();
+  const player = playerById[id];
+
+  const mine = useMemo(() => matches.filter((m) => m.player_a === id || m.player_b === id), [matches, id]);
+  const myTrophies = useMemo(() => trophies.filter((t) => t.player_id === id), [trophies, id]);
 
   if (!player) {
     return (
-      <div className="max-w-lg mx-auto min-h-screen bg-app px-4 py-8">
-        <Link to="/" className="flex items-center gap-2 text-muted text-sm mb-4 hover:text-brand">
-          <ArrowLeft size={16} /> Back
-        </Link>
-        <div className="bg-card border border-line rounded-2xl p-6 text-center shadow-sm">
-          <p className="text-muted text-sm">Player not found.</p>
-        </div>
-      </div>
+      <>
+        <Header name="Player" />
+        <Page>
+          <EmptyState icon={Users} title="Player not found"
+            action={<Link to="/players" className="inline-block rounded-xl bg-brand text-onBrand text-sm font-semibold px-4 py-2 hover:bg-brand-strong transition-colors">See all players</Link>}>
+            This player may have been removed from the league.
+          </EmptyState>
+        </Page>
+      </>
     );
   }
 
+  const rank = standings.findIndex((p) => p.id === id) + 1;
+  const played = player.wins + player.draws + player.losses;
+  const winRate = played ? Math.round((player.wins / played) * 100) : null;
+  const g = goals[id] || { gf: 0, ga: 0 };
+  const stat = [
+    { label: 'Rank', value: `${rank}`, sub: `of ${players.length}` },
+    { label: 'Played', value: played },
+    { label: 'Win rate', value: winRate === null ? '—' : `${winRate}%` },
+    { label: 'Goal diff', value: signed(g.gf - g.ga), sub: 'this season' },
+  ];
+  const record = [
+    { kind: 'win', label: 'Wins', value: player.wins, cls: 'text-win bg-win/10 border-win/25' },
+    { kind: 'draw', label: 'Draws', value: player.draws, cls: 'text-draw bg-draw/10 border-draw/25' },
+    { kind: 'loss', label: 'Losses', value: player.losses, cls: 'text-danger bg-danger/10 border-danger/25' },
+  ];
+
   return (
-    <div className="max-w-lg mx-auto min-h-screen bg-app">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-card border-b border-line px-4 py-3 flex items-center gap-3">
-        <Link to="/" className="flex items-center gap-1.5 text-muted hover:text-brand transition-colors">
-          <ArrowLeft size={18} />
+    <>
+      <Header name={player.name} />
+      <Page>
+        <Link to="/players" className="hidden lg:inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink mb-4">
+          <ArrowLeft size={15} aria-hidden="true" /> All players
         </Link>
-        <h1 className="font-display font-bold text-xl text-ink">Player Profile</h1>
-      </header>
 
-      <div className="px-4 py-5 space-y-4 pb-10">
-        {/* Player card */}
-        <div className="bg-card border border-line rounded-2xl shadow-sm overflow-hidden">
-          {/* Banner */}
-          <div className="h-20 bg-turf" />
-          <div className="px-5 pb-5">
-            <div className="flex items-end gap-4 -mt-8 mb-4">
-              {player.team_picture_url ? (
-                <img src={player.team_picture_url} alt=""
-                  className="w-20 h-20 rounded-2xl object-cover border-4 border-white shadow-md flex-shrink-0" />
-              ) : (
-                <div className="w-20 h-20 rounded-2xl bg-app border-4 border-white shadow-md flex-shrink-0 flex items-center justify-center">
-                  <User size={28} className="text-muted" />
-                </div>
-              )}
-              <div className="mb-1 min-w-0">
-                <h2 className="font-display font-bold text-3xl leading-tight truncate text-ink">
-                  {player.name}
-                </h2>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="font-mono font-bold text-brand text-lg">{player.elo} ELO</span>
-                  <FormDots form={form} />
-                </div>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-green-500/10 border border-green-500/25 rounded-xl p-3 text-center">
-                <div className="font-display font-bold text-3xl text-win">{player.wins}</div>
-                <div className="text-win/70 text-xs mt-0.5">Wins</div>
-              </div>
-              <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 text-center">
-                <div className="font-display font-bold text-3xl text-amber-500">{player.draws}</div>
-                <div className="text-amber-500/70 text-xs mt-0.5">Draws</div>
-              </div>
-              <div className="bg-red-500/10 border border-red-500/25 rounded-xl p-3 text-center">
-                <div className="font-display font-bold text-3xl text-danger">{player.losses}</div>
-                <div className="text-danger/70 text-xs mt-0.5">Losses</div>
-              </div>
-            </div>
-
-            {player.highest_rank && (
-              <div className="flex items-center gap-2 mt-3 bg-amber-500/10 border border-amber-500/25 rounded-xl px-4 py-2.5">
-                <Award size={16} className="text-amber-500 flex-shrink-0" />
-                <span className="text-sm text-ink">
-                  Highest rank: <span className="font-semibold">{player.highest_rank}</span>
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Edit profile */}
-        <div className="bg-card border border-line rounded-2xl shadow-sm p-5">
-          <h3 className="font-display font-bold text-xl text-ink mb-4">Edit Profile</h3>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-muted text-xs mb-1.5">Team / club picture</label>
-              <input type="file" accept="image/*" onChange={(e) => setPictureFile(e.target.files?.[0] || null)}
-                className="w-full text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand/10 file:px-3 file:py-2 file:text-brand file:text-sm file:font-medium" />
-              {pictureFile && <p className="text-muted text-xs mt-1">{pictureFile.name}</p>}
-            </div>
-            <div>
-              <label className="block text-muted text-xs mb-1.5">
-                Highest rank ever (real eFootball)
-              </label>
-              <input value={rankInput} onChange={(e) => setRankInput(e.target.value)}
-                placeholder="e.g. Division 1, Legend" className={inputCls} />
-            </div>
-            <div>
-              <label htmlFor="profile-pin" className="block text-muted text-xs mb-1.5">
-                {player.has_pin ? 'Your PIN' : 'Choose a PIN (4 to 8 digits)'}
-              </label>
-              <input id="profile-pin" type="password" inputMode="numeric" autoComplete="off" maxLength={8}
-                value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                placeholder={player.has_pin ? 'PIN' : 'e.g. 4821'} className={inputCls} />
-              <p className="text-muted text-xs mt-1.5">
-                {player.has_pin
-                  ? 'Only the person with this PIN can change this profile. Forgot it? Ask an admin to reset it.'
-                  : 'This locks the profile to you. You will need the PIN for every later change.'}
-              </p>
-            </div>
-            {message && (
-              <div className={`rounded-xl px-4 py-3 text-sm ${
-                message.type === 'error' ? 'bg-red-500/10 text-danger border border-red-500/25' : 'bg-green-500/10 text-win border border-green-500/25'
-              }`}>
-                {message.text}
-              </div>
-            )}
-            <button onClick={saveProfile} disabled={saving}
-              className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold bg-brand text-onBrand shadow-sm hover:bg-brand-strong active:scale-95 transition-all disabled:opacity-60">
-              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-              Save Profile
-            </button>
-          </div>
-        </div>
-
-        {/* Recent matches */}
-        <div>
-          <h3 className="font-display font-bold text-xl text-ink mb-3">Recent Matches</h3>
-          {matches.length === 0 ? (
-            <div className="bg-card border border-line rounded-2xl p-6 text-center shadow-sm">
-              <p className="text-muted text-sm">No confirmed matches yet.</p>
-            </div>
-          ) : (
-            <div className="bg-card border border-line rounded-2xl shadow-sm overflow-hidden">
-              {matches.map((m, i) => {
-                const isA = m.player_a === id;
-                const opponentId = isA ? m.player_b : m.player_a;
-                const myScore = isA ? m.score_a : m.score_b;
-                const theirScore = isA ? m.score_b : m.score_a;
-                const delta = isA ? m.delta_a : m.delta_b;
-                const result = myScore > theirScore ? 'W' : myScore < theirScore ? 'L' : 'D';
-                const resultColor = result === 'W' ? 'bg-green-100 text-win' : result === 'L' ? 'bg-red-100 text-danger' : 'bg-amber-100 text-amber-600';
-                return (
-                  <div key={m.id}
-                    className={`px-4 py-3.5 flex items-center gap-3 ${i === matches.length - 1 ? '' : 'border-b border-line'}`}>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-lg flex-shrink-0 ${resultColor}`}>{result}</span>
-                    <Link to={`/players/${opponentId}`} className="font-mono text-sm text-ink hover:text-brand flex-1 min-w-0 truncate">
-                      vs {playerNames[opponentId] || 'Opponent'} <span className="text-muted">{myScore}–{theirScore}</span>
-                    </Link>
-                    <span className={`font-mono text-xs flex-shrink-0 ${delta >= 0 ? 'text-win' : 'text-danger'}`}>
-                      {delta >= 0 ? '+' : ''}{delta}
-                    </span>
+        <div className="grid lg:grid-cols-5 gap-6">
+          <div className="lg:col-span-2 space-y-4 min-w-0">
+            <Card className="overflow-hidden">
+              <div className="h-20" style={{ background: 'radial-gradient(120% 160% at 85% 0%, rgb(208 166 79 / .35), transparent 55%), linear-gradient(135deg, #1a2438, #0e141e)' }} aria-hidden="true" />
+              <div className="px-5 pb-5">
+                <div className="flex items-end gap-4 -mt-9">
+                  {player.team_picture_url ? (
+                    <img src={player.team_picture_url} alt="" className="w-20 h-20 rounded-2xl object-cover border-4 border-card flex-shrink-0" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-2xl bg-card2 border-4 border-card flex-shrink-0 flex items-center justify-center">
+                      <User size={28} className="text-muted" aria-hidden="true" />
+                    </div>
+                  )}
+                  <div className="min-w-0 pb-1">
+                    <h2 className="hidden lg:block font-display font-extrabold text-3xl leading-tight text-ink truncate">{player.name}</h2>
+                    <div className="flex items-center gap-3 lg:mt-1">
+                      <span className="font-display font-bold text-2xl text-brand-strong tabular">{player.elo} <span className="text-sm font-semibold">ELO</span></span>
+                      <FormDots form={formByPlayer[id]} />
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+
+                <ul className="grid grid-cols-3 gap-3 mt-5">
+                  {record.map((r) => (
+                    <li key={r.label} className={`rounded-xl border p-3 text-center ${r.cls}`}>
+                      <div className="font-display font-bold text-3xl leading-none tabular">{r.value}</div>
+                      <div className="text-xs mt-1.5 font-medium">{r.label}</div>
+                    </li>
+                  ))}
+                </ul>
+
+                {player.highest_rank && (
+                  <div className="flex items-center gap-2 mt-3 bg-accent/10 border border-accent/30 rounded-xl px-4 py-2.5">
+                    <Award size={16} className="text-accent flex-shrink-0" aria-hidden="true" />
+                    <span className="text-sm text-ink">Highest rank: <span className="font-semibold">{player.highest_rank}</span></span>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <ul className="grid grid-cols-2 gap-3">
+              {stat.map((s) => (
+                <li key={s.label} className="bg-card border border-line rounded-2xl px-4 py-3.5">
+                  <div className="text-xs text-muted">{s.label}</div>
+                  <div className="font-display font-bold text-3xl leading-none text-ink tabular mt-1.5">{s.value}</div>
+                  {s.sub && <div className="text-xs text-muted mt-1">{s.sub}</div>}
+                </li>
+              ))}
+            </ul>
+
+            {myTrophies.length > 0 && (
+              <section>
+                <SectionHeading>Trophies</SectionHeading>
+                <ul className="space-y-2">
+                  {myTrophies.map((t) => {
+                    const info = TROPHY_TYPES[t.trophy_type] || TROPHY_TYPES.winner;
+                    return (
+                      <li key={t.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 border"
+                        style={{ background: `${info.color}1F`, borderColor: `${info.color}55` }}>
+                        <span className="text-lg flex-shrink-0" aria-hidden="true">{info.emoji}</span>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-semibold text-sm text-ink">{t.competition_name}</span>
+                          <span className="text-muted text-xs ml-2">{info.label}</span>
+                        </div>
+                        {t.count > 1 && <span className="font-bold text-xs px-2 py-0.5 rounded-full bg-brand/15 text-brand-strong tabular">{t.count}×</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
+          </div>
+
+          <div className="lg:col-span-3 space-y-6 min-w-0">
+            <section>
+              <SectionHeading>Recent matches</SectionHeading>
+              {mine.length === 0 ? (
+                <EmptyState title="No confirmed matches yet">Results appear here once they are approved.</EmptyState>
+              ) : (
+                <ul className="bg-card border border-line rounded-2xl overflow-hidden divide-y divide-line">
+                  {mine.slice(0, 15).map((m) => (
+                    <MatchRow key={m.id} match={m} playerById={playerById}
+                      badge={{ W: 'win', D: 'draw', L: 'loss' }[resultFor(m, id)]} />
+                  ))}
+                </ul>
+              )}
+              {mine.length > 15 && (
+                <p className="text-center mt-3">
+                  <Link to="/history" className="text-sm font-semibold text-brand-strong hover:underline">See the full match history</Link>
+                </p>
+              )}
+            </section>
+
+            <EditProfile key={player.id} player={player} onSaved={reload} />
+          </div>
         </div>
-      </div>
-    </div>
+      </Page>
+    </>
+  );
+}
+
+export default function PlayerProfile() {
+  return (
+    <LeagueGate>
+      <Profile />
+    </LeagueGate>
   );
 }
