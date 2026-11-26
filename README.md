@@ -41,3 +41,4 @@ The admin panel is at `/admin`.
 `scripts/export-supabase.mjs` copied the league out of the old Supabase
 project into `data/seed.sql` and `public/img/`. Load it once with
 `npx wrangler d1 execute super-league --remote --file=data/seed.sql`.
+@nyodoi-dev @godwin
